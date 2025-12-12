@@ -1,0 +1,14 @@
+.DS_Store
+/.build
+/Packages
+xcuserdata/
+DerivedData/
+.swiftpm/configuration/registries.json
+.swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
+.netrc
+
+# Build artifacts
+merged.profdata
+
+# Large model files (download separately from releases)
+Sources/KataGoOnAppleSilicon/Models/Resources/*.mlpackage/
