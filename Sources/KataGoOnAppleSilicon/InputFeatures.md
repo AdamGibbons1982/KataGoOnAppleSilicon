@@ -109,8 +109,8 @@ Each plane is a 19x19 binary or float grid where position `(y, x)` corresponds t
 |---------|--------|-------|
 | Spatial 0 (on board) | ✅ Implemented | Always 1.0 for all positions |
 | Spatial 1-2 (stones) | ✅ Implemented | Own/opponent perspective based on nextPlayer |
-| Spatial 3-5 (liberties) | ⏳ Pending | Requires liberty counting per stone |
-| Spatial 6 (ko-ban) | ⏳ Pending | Requires ko point tracking |
+| Spatial 3-5 (liberties) | ✅ Implemented | Liberty counting per stone |
+| Spatial 6 (ko-ban) | ✅ Implemented | Uses Board.koPoint for simple ko |
 | Spatial 9-13 (history) | ⏳ Pending | Requires move history tracking |
 | Spatial 14-17 (ladders) | ⏳ Pending | Requires ladder detection |
 | Spatial 18-19 (area) | ⏳ Pending | Requires area calculation |

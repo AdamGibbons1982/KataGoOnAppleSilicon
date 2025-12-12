@@ -71,6 +71,11 @@ public struct BoardState {
                 // Other planes: 0 (MLMultiArray is zero-initialized)
             }
         }
+        
+        // Plane 6: Ko-ban (ko prohibition)
+        if let ko = board.koPoint {
+            spatial[[0, 6, NSNumber(value: ko.y), NSNumber(value: ko.x)]] = 1.0
+        }
     }
     
     // MARK: - Global Features (19 values)
