@@ -286,3 +286,179 @@ import CoreML
     #expect(abs(actualKomi - (-19.05)) < 0.01)
 }
 
+// MARK: - Planes 18-19 (Area Features) Tests
+
+@Test func testBoardStatePlanes18And19EmptyBoard() async throws {
+    // Empty board should have all zeros on both planes
+    let board = Board()
+    let boardState = BoardState(board: board)
+    
+    // Verify planes 18 and 19 are all zeros
+    for y in 0..<19 {
+        for x in 0..<19 {
+            let plane18Value = boardState.spatial[[0, 18, NSNumber(value: y), NSNumber(value: x)]].floatValue
+            let plane19Value = boardState.spatial[[0, 19, NSNumber(value: y), NSNumber(value: x)]].floatValue
+            #expect(plane18Value == 0.0)
+            #expect(plane19Value == 0.0)
+        }
+    }
+}
+
+@Test func testBoardStatePlanes18And19WithStones() async throws {
+    // Stones should be marked as owned by their color
+    let board = Board()
+    _ = board.playMove(at: Point(x: 3, y: 3), stone: .black)
+    _ = board.playMove(at: Point(x: 5, y: 5), stone: .white)
+    
+    // Test with black as nextPlayer
+    let boardState = BoardState(board: board, nextPlayer: .black)
+    
+    // Black stone at (3,3) should be in plane 18 (own area)
+    let blackStonePlane18 = boardState.spatial[[0, 18, 3, 3]].floatValue
+    #expect(blackStonePlane18 == 1.0)
+    
+    // White stone at (5,5) should be in plane 19 (opponent area)
+    let whiteStonePlane19 = boardState.spatial[[0, 19, 5, 5]].floatValue
+    #expect(whiteStonePlane19 == 1.0)
+    
+    // Black stone should not be in plane 19
+    let blackStonePlane19 = boardState.spatial[[0, 19, 3, 3]].floatValue
+    #expect(blackStonePlane19 == 0.0)
+    
+    // White stone should not be in plane 18
+    let whiteStonePlane18 = boardState.spatial[[0, 18, 5, 5]].floatValue
+    #expect(whiteStonePlane18 == 0.0)
+}
+
+@Test func testBoardStatePlanes18And19PerspectiveSwitching() async throws {
+    // Test perspective switching: when nextPlayer changes, planes 18 and 19 should swap
+    let board = Board()
+    _ = board.playMove(at: Point(x: 2, y: 2), stone: .black)
+    _ = board.playMove(at: Point(x: 3, y: 3), stone: .white)
+    
+    // Test with black as nextPlayer
+    let boardStateBlack = BoardState(board: board, nextPlayer: .black)
+    #expect(boardStateBlack.spatial[[0, 18, 2, 2]].floatValue == 1.0) // Black stone in plane 18
+    #expect(boardStateBlack.spatial[[0, 19, 3, 3]].floatValue == 1.0) // White stone in plane 19
+    
+    // Test with white as nextPlayer
+    let boardStateWhite = BoardState(board: board, nextPlayer: .white)
+    #expect(boardStateWhite.spatial[[0, 18, 3, 3]].floatValue == 1.0) // White stone in plane 18
+    #expect(boardStateWhite.spatial[[0, 19, 2, 2]].floatValue == 1.0) // Black stone in plane 19
+}
+
+@Test func testBoardStatePlanes18And19SurroundedTerritory() async throws {
+    // Create a small surrounded territory in the corner
+    // Black surrounds corner at (0,0)
+    let board = Board()
+    _ = board.playMove(at: Point(x: 1, y: 0), stone: .black)
+    _ = board.playMove(at: Point(x: 0, y: 1), stone: .black)
+    
+    let boardState = BoardState(board: board, nextPlayer: .black)
+    
+    // The surrounded empty space at (0,0) should be in plane 18 (black's area)
+    let territoryPlane18 = boardState.spatial[[0, 18, 0, 0]].floatValue
+    #expect(territoryPlane18 == 1.0)
+    
+    // Black stones should also be in plane 18
+    #expect(boardState.spatial[[0, 18, 0, 1]].floatValue == 1.0)
+    #expect(boardState.spatial[[0, 18, 1, 0]].floatValue == 1.0)
+}
+
+@Test func testBoardStatePlanes18And19WhiteSurroundedTerritory() async throws {
+    // White surrounds corner at (18,18)
+    let board = Board()
+    _ = board.playMove(at: Point(x: 17, y: 18), stone: .white)
+    _ = board.playMove(at: Point(x: 18, y: 17), stone: .white)
+    
+    let boardState = BoardState(board: board, nextPlayer: .white)
+    
+    // The surrounded empty space at (18,18) should be in plane 18 (white's area from white's perspective)
+    let territoryPlane18 = boardState.spatial[[0, 18, 18, 18]].floatValue
+    #expect(territoryPlane18 == 1.0)
+    
+    // White stones should also be in plane 18
+    #expect(boardState.spatial[[0, 18, 18, 17]].floatValue == 1.0)
+    #expect(boardState.spatial[[0, 18, 17, 18]].floatValue == 1.0)
+}
+
+@Test func testBoardStatePlanes18And19MixedScenario() async throws {
+    // Create a mixed scenario with both stones and territory
+    let board = Board()
+    // Black creates territory in top-left
+    _ = board.playMove(at: Point(x: 1, y: 0), stone: .black)
+    _ = board.playMove(at: Point(x: 0, y: 1), stone: .black)
+    // White creates territory in bottom-right
+    _ = board.playMove(at: Point(x: 17, y: 18), stone: .white)
+    _ = board.playMove(at: Point(x: 18, y: 17), stone: .white)
+    
+    let boardState = BoardState(board: board, nextPlayer: .black)
+    
+    // Black's area (plane 18)
+    #expect(boardState.spatial[[0, 18, 0, 0]].floatValue == 1.0) // Territory
+    #expect(boardState.spatial[[0, 18, 0, 1]].floatValue == 1.0) // Stone
+    #expect(boardState.spatial[[0, 18, 1, 0]].floatValue == 1.0) // Stone
+    
+    // White's area (plane 19)
+    #expect(boardState.spatial[[0, 19, 18, 18]].floatValue == 1.0) // Territory
+    #expect(boardState.spatial[[0, 19, 18, 17]].floatValue == 1.0) // Stone
+    #expect(boardState.spatial[[0, 19, 17, 18]].floatValue == 1.0) // Stone
+}
+
+@Test func testBoardStatePlanes18And19MultipleStones() async throws {
+    // Test with multiple stones of both colors
+    let board = Board()
+    _ = board.playMove(at: Point(x: 3, y: 3), stone: .black)
+    _ = board.playMove(at: Point(x: 4, y: 4), stone: .black)
+    _ = board.playMove(at: Point(x: 5, y: 5), stone: .white)
+    _ = board.playMove(at: Point(x: 6, y: 6), stone: .white)
+    
+    let boardState = BoardState(board: board, nextPlayer: .black)
+    
+    // All black stones should be in plane 18
+    #expect(boardState.spatial[[0, 18, 3, 3]].floatValue == 1.0)
+    #expect(boardState.spatial[[0, 18, 4, 4]].floatValue == 1.0)
+    
+    // All white stones should be in plane 19
+    #expect(boardState.spatial[[0, 19, 5, 5]].floatValue == 1.0)
+    #expect(boardState.spatial[[0, 19, 6, 6]].floatValue == 1.0)
+}
+
+@Test func testBoardStatePlanes18And19LargeTerritory() async throws {
+    // Test with a larger territory surrounded by one color
+    let board = Board()
+    // Create a 3x3 territory surrounded by black
+    _ = board.playMove(at: Point(x: 1, y: 1), stone: .black)
+    _ = board.playMove(at: Point(x: 2, y: 1), stone: .black)
+    _ = board.playMove(at: Point(x: 3, y: 1), stone: .black)
+    _ = board.playMove(at: Point(x: 1, y: 2), stone: .black)
+    _ = board.playMove(at: Point(x: 3, y: 2), stone: .black)
+    _ = board.playMove(at: Point(x: 1, y: 3), stone: .black)
+    _ = board.playMove(at: Point(x: 2, y: 3), stone: .black)
+    _ = board.playMove(at: Point(x: 3, y: 3), stone: .black)
+    
+    let boardState = BoardState(board: board, nextPlayer: .black)
+    
+    // The center empty space at (2,2) should be in plane 18 (black's territory)
+    let territoryPlane18 = boardState.spatial[[0, 18, 2, 2]].floatValue
+    #expect(territoryPlane18 == 1.0)
+}
+
+@Test func testBoardStatePlanes18And19WithOpponentStonesInRegion() async throws {
+    // Test that opponent stones are correctly marked by their own color, not as territory
+    let board = Board()
+    // Create a simple scenario with both colors
+    _ = board.playMove(at: Point(x: 1, y: 1), stone: .black)
+    _ = board.playMove(at: Point(x: 2, y: 2), stone: .white)
+    
+    let boardState = BoardState(board: board, nextPlayer: .black)
+    
+    // Black stone should be in plane 18 (own area from black's perspective)
+    #expect(boardState.spatial[[0, 18, 1, 1]].floatValue == 1.0)
+    #expect(boardState.spatial[[0, 19, 1, 1]].floatValue == 0.0)
+    
+    // White stone should be in plane 19 (opponent area from black's perspective)
+    #expect(boardState.spatial[[0, 19, 2, 2]].floatValue == 1.0)
+    #expect(boardState.spatial[[0, 18, 2, 2]].floatValue == 0.0)
+}
+

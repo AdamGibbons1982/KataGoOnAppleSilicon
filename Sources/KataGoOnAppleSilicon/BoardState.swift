@@ -41,6 +41,7 @@ public struct BoardState {
         fillPlanes3To5Liberties(spatial: spatial, board: board)
         fillPlane6KoBan(spatial: spatial, board: board)
         fillPlane7KoRecaptureBlocked(spatial: spatial)
+        fillPlanes18And19Area(spatial: spatial, board: board, nextPlayer: nextPlayer)
     }
     
     /// Fill plane 0: On board (always 1.0 for all valid positions)
@@ -109,6 +110,31 @@ public struct BoardState {
     private static func fillPlane7KoRecaptureBlocked(spatial: MLMultiArray) {
         // Plane 7 is zero-initialized by MLMultiArray
         // Chinese rules have no encore phase, so all values remain 0.0
+    }
+    
+    /// Fill planes 18-19: Area ownership (territory/area ownership)
+    /// - Plane 18: 1.0 where area is owned by nextPlayer (current player)
+    /// - Plane 19: 1.0 where area is owned by the opponent
+    /// - Both planes are 0.0 for neutral/unowned territory
+    private static func fillPlanes18And19Area(spatial: MLMultiArray, board: Board, nextPlayer: Stone) {
+        let area = board.calculateArea()
+        let oppStone: Stone = (nextPlayer == .black) ? .white : .black
+        
+        for y in 0..<19 {
+            for x in 0..<19 {
+                if let owner = area[y][x] {
+                    // Plane 18: Own area (current player's perspective)
+                    if owner == nextPlayer {
+                        spatial[[0, 18, NSNumber(value: y), NSNumber(value: x)]] = 1.0
+                    }
+                    // Plane 19: Opponent area
+                    else if owner == oppStone {
+                        spatial[[0, 19, NSNumber(value: y), NSNumber(value: x)]] = 1.0
+                    }
+                }
+                // If owner is nil, both planes remain 0.0 (already zero-initialized)
+            }
+        }
     }
     
     // MARK: - Global Features (19 values)

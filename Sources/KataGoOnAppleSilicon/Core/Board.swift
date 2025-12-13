@@ -178,4 +178,247 @@ public class Board {
             return current == target
         }
     }
+    
+    // MARK: - Area Calculation (Benson's Algorithm)
+    
+    /// Calculate area ownership using Benson's algorithm
+    /// Returns a 2D array where .black/.white indicates ownership, nil indicates neutral/unowned
+    public func calculateArea() -> [[Stone?]] {
+        // For Chinese rules: nonPassAliveStones=true, safeBigTerritories=true, unsafeBigTerritories=true
+        var result: [[Stone?]] = Array(repeating: Array(repeating: nil, count: 19), count: 19)
+        
+        // Calculate area for both players
+        calculateAreaForPla(pla: .black, safeBigTerritories: true, unsafeBigTerritories: true, isMultiStoneSuicideLegal: true, result: &result)
+        calculateAreaForPla(pla: .white, safeBigTerritories: true, unsafeBigTerritories: true, isMultiStoneSuicideLegal: true, result: &result)
+        
+        // Mark all remaining stones as owned (nonPassAliveStones=true)
+        for y in 0..<19 {
+            for x in 0..<19 {
+                if result[y][x] == nil {
+                    result[y][x] = stones[y][x] != .empty ? stones[y][x] : nil
+                }
+            }
+        }
+        
+        return result
+    }
+    
+    /// Calculate area for a specific player using Benson's algorithm
+    private func calculateAreaForPla(pla: Stone, safeBigTerritories: Bool, unsafeBigTerritories: Bool, isMultiStoneSuicideLegal: Bool, result: inout [[Stone?]]) {
+        let opp: Stone = (pla == .black) ? .white : .black
+        
+        // Find all groups for this player and their heads (representative point)
+        var groupHeads: [Point: Point] = [:] // Maps each point to its group head
+        var allGroupHeads: Set<Point> = []
+        
+        for y in 0..<19 {
+            for x in 0..<19 {
+                let point = Point(x: x, y: y)
+                if stones[y][x] == pla && groupHeads[point] == nil {
+                    // Find the group and use the first point as head
+                    var group: [Point] = []
+                    var visited: Set<Point> = []
+                    findGroup(at: point, stone: pla, group: &group, visited: &visited)
+                    let head = group[0]
+                    for p in group {
+                        groupHeads[p] = head
+                    }
+                    allGroupHeads.insert(head)
+                }
+            }
+        }
+        
+        // Build regions (empty-or-opponent connected areas)
+        var regionIdxByPoint: [Point: Int] = [:]
+        var nextEmptyOrOpp: [Point: Point] = [:]
+        var regionHeads: [Point] = []
+        var vitalForPlaHeads: [[Point]] = [] // For each region, which pla group heads it's vital for
+        var numInternalSpacesMax2: [Int] = [] // 0, 1, or 2+ internal spaces
+        var containsOpp: [Bool] = []
+        var bordersNonPassAlivePlaByHead: [Bool] = []
+        
+        var numRegions = 0
+        let maxRegions = (19 * 19 + 1) / 2 + 1
+        
+        // Build regions using BFS (empty-or-opponent regions)
+        for y in 0..<19 {
+            for x in 0..<19 {
+                let point = Point(x: x, y: y)
+                if regionIdxByPoint[point] != nil {
+                    continue
+                }
+                // Only process empty or opponent stones
+                if stones[y][x] != .empty && stones[y][x] != opp {
+                    continue
+                }
+                
+                let regionIdx = numRegions
+                numRegions += 1
+                guard numRegions <= maxRegions else { break }
+                
+                regionHeads.append(point)
+                vitalForPlaHeads.append([])
+                numInternalSpacesMax2.append(0)
+                containsOpp.append(false)
+                bordersNonPassAlivePlaByHead.append(false)
+                
+                // Find adjacent pla group heads
+                var adjacentHeads: Set<Point> = []
+                for neighbor in neighbors(of: point) {
+                    if stones[neighbor.y][neighbor.x] == pla {
+                        if let head = groupHeads[neighbor] {
+                            adjacentHeads.insert(head)
+                        }
+                    }
+                }
+                vitalForPlaHeads[regionIdx] = Array(adjacentHeads)
+                
+                // Build region using BFS
+                var queue: [Point] = [point]
+                var queueHead = 0
+                regionIdxByPoint[point] = regionIdx
+                var tailTarget = point
+                
+                while queueHead < queue.count {
+                    let loc = queue[queueHead]
+                    queueHead += 1
+                    
+                    // Check if internal (not adjacent to pla)
+                    var isAdjacentToPla = false
+                    for neighbor in neighbors(of: loc) {
+                        if stones[neighbor.y][neighbor.x] == pla {
+                            isAdjacentToPla = true
+                            break
+                        }
+                    }
+                    if !isAdjacentToPla && numInternalSpacesMax2[regionIdx] < 2 {
+                        numInternalSpacesMax2[regionIdx] += 1
+                    }
+                    
+                    if stones[loc.y][loc.x] == opp {
+                        containsOpp[regionIdx] = true
+                    }
+                    
+                    nextEmptyOrOpp[loc] = tailTarget
+                    tailTarget = loc
+                    
+                    // Add neighbors to queue
+                    for neighbor in neighbors(of: loc) {
+                        if regionIdxByPoint[neighbor] == nil && (stones[neighbor.y][neighbor.x] == .empty || stones[neighbor.y][neighbor.x] == opp) {
+                            regionIdxByPoint[neighbor] = regionIdx
+                            queue.append(neighbor)
+                        }
+                    }
+                }
+                
+                // Close circular linked list
+                nextEmptyOrOpp[point] = tailTarget
+            }
+        }
+        
+        // Count vital liberties for each group
+        var vitalCountByPlaHead: [Point: Int] = [:]
+        for head in allGroupHeads {
+            vitalCountByPlaHead[head] = 0
+        }
+        
+        for i in 0..<numRegions {
+            for head in vitalForPlaHeads[i] {
+                vitalCountByPlaHead[head, default: 0] += 1
+            }
+        }
+        
+        // Benson iteration: remove groups with <2 vital liberties
+        var plaHasBeenKilled: [Point: Bool] = [:]
+        for head in allGroupHeads {
+            plaHasBeenKilled[head] = false
+        }
+        
+        while true {
+            var killedAnything = false
+            for head in allGroupHeads {
+                if plaHasBeenKilled[head] == true {
+                    continue
+                }
+                
+                if vitalCountByPlaHead[head, default: 0] < 2 {
+                    plaHasBeenKilled[head] = true
+                    killedAnything = true
+                    
+                    // Find all points in this group
+                    var group: [Point] = []
+                    var visited: Set<Point> = []
+                    findGroup(at: head, stone: pla, group: &group, visited: &visited)
+                    
+                    // Update bordering regions
+                    for p in group {
+                        for neighbor in neighbors(of: p) {
+                            if let regionIdx = regionIdxByPoint[neighbor] {
+                                if !bordersNonPassAlivePlaByHead[regionIdx] && (stones[neighbor.y][neighbor.x] == .empty || stones[neighbor.y][neighbor.x] == opp) {
+                                    bordersNonPassAlivePlaByHead[regionIdx] = true
+                                    // Decrement vitality for all pla chains
+                                    for h in vitalForPlaHeads[regionIdx] {
+                                        vitalCountByPlaHead[h, default: 0] -= 1
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if !killedAnything {
+                break
+            }
+        }
+        
+        // Mark pass-alive groups
+        for head in allGroupHeads {
+            if plaHasBeenKilled[head] != true {
+                var group: [Point] = []
+                var visited: Set<Point> = []
+                findGroup(at: head, stone: pla, group: &group, visited: &visited)
+                for p in group {
+                    result[p.y][p.x] = pla
+                }
+            }
+        }
+        
+        // Mark territory
+        let atLeastOnePla = !allGroupHeads.isEmpty
+        for i in 0..<numRegions {
+            let head = regionHeads[i]
+            
+            let shouldMark = (numInternalSpacesMax2[i] <= 1 && !bordersNonPassAlivePlaByHead[i] && atLeastOnePla) ||
+                            (safeBigTerritories && !containsOpp[i] && !bordersNonPassAlivePlaByHead[i] && atLeastOnePla)
+            
+            if shouldMark {
+                // Mark all empty points in region (not opponent stones)
+                var cur = head
+                repeat {
+                    // Only mark empty spaces, not opponent stones
+                    if stones[cur.y][cur.x] == .empty {
+                        result[cur.y][cur.x] = pla
+                    }
+                    if let next = nextEmptyOrOpp[cur], next != head {
+                        cur = next
+                    } else {
+                        break
+                    }
+                } while cur != head
+            } else if unsafeBigTerritories && !containsOpp[i] && atLeastOnePla {
+                // Mark only if empty and not already claimed
+                var cur = head
+                repeat {
+                    if stones[cur.y][cur.x] == .empty && result[cur.y][cur.x] == nil {
+                        result[cur.y][cur.x] = pla
+                    }
+                    if let next = nextEmptyOrOpp[cur], next != head {
+                        cur = next
+                    } else {
+                        break
+                    }
+                } while cur != head
+            }
+        }
+    }
 }
