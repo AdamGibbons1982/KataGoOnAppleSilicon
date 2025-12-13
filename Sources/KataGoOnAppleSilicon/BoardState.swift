@@ -448,7 +448,23 @@ public struct BoardState {
         // Features 0-4: Pass history are set by fillPlanes9To13History()
         // They remain as set (either 0.0 or 1.0 for passes)
         
-        // Feature 5: Komi (from current player's perspective)
+        // Calculate selfKomi (perspective-aware komi) for features 5 and 18
+        let selfKomi = calculateSelfKomi(nextPlayer: nextPlayer, komi: komi)
+        
+        // Fill individual features
+        fillGlobalFeature5Komi(global: global, selfKomi: selfKomi)
+        fillGlobalFeatures6To13ChineseRules(global: global)
+        fillGlobalFeature14PassEndsPhase(global: global, board: board, nextPlayer: nextPlayer)
+        fillGlobalFeatures15To17Unused(global: global)
+        fillGlobalFeature18KomiParityWave(global: global, selfKomi: selfKomi)
+    }
+    
+    /// Calculate selfKomi (komi from current player's perspective)
+    /// - Parameters:
+    ///   - nextPlayer: The player to move next
+    ///   - komi: Komi value
+    /// - Returns: Perspective-aware komi value, clipped to board area bounds
+    private static func calculateSelfKomi(nextPlayer: Stone, komi: Float) -> Float {
         // selfKomi is positive if komi benefits the current player
         // Standard komi benefits White, so:
         // - If White to move: selfKomi = komi
@@ -462,8 +478,21 @@ public struct BoardState {
         if selfKomi > maxKomi { selfKomi = maxKomi }
         if selfKomi < -maxKomi { selfKomi = -maxKomi }
         
+        return selfKomi
+    }
+    
+    /// Fill global feature 5: Komi (from current player's perspective)
+    private static func fillGlobalFeature5Komi(global: MLMultiArray, selfKomi: Float) {
         global[5] = NSNumber(value: selfKomi / 20.0)
-        
+    }
+    
+    /// Fill global features 6-13: Chinese rules constants
+    /// Features 6-7: Ko rule (0.0 for simple ko)
+    /// Feature 8: Multi-stone suicide allowed (1.0)
+    /// Feature 9: Territory scoring (0.0 for area scoring)
+    /// Features 10-11: Tax rule (0.0, no tax rule)
+    /// Features 12-13: Encore phase (0.0, no encore)
+    private static func fillGlobalFeatures6To13ChineseRules(global: MLMultiArray) {
         // Features 6-7: Ko rule encoding
         // For Chinese rules (simple ko): both are 0.0
         // - Positional/situational ko would set [6]=1.0, [7]=±0.5
@@ -487,20 +516,68 @@ public struct BoardState {
         // Chinese rules have no encore phase
         // global[12] = 0.0  // Already 0
         // global[13] = 0.0  // Already 0
-        
-        // Feature 14: Pass would end phase
+    }
+    
+    /// Fill global feature 14: Pass would end phase
+    private static func fillGlobalFeature14PassEndsPhase(global: MLMultiArray, board: Board, nextPlayer: Stone) {
         let passEndsPhase = passWouldEndPhase(board: board, movePla: nextPlayer)
         global[14] = passEndsPhase ? 1.0 : 0.0
-        
+    }
+    
+    /// Fill global features 15-17: Unused features (set to 0.0)
+    /// Features 15-16: Playout doubling advantage (for handicap)
+    /// Feature 17: Button go variant
+    private static func fillGlobalFeatures15To17Unused(global: MLMultiArray) {
         // Features 15-16: Playout doubling advantage (for handicap)
         // global[15] = 0.0  // Already 0
         // global[16] = 0.0  // Already 0
         
         // Feature 17: Button go variant
         // global[17] = 0.0  // Already 0
+    }
+    
+    /// Fill global feature 18: Komi parity wave
+    /// Triangular wave based on komi parity to help neural network understand komi effects
+    /// Only computed for area scoring (Chinese rules) or encore phase >= 2
+    /// Since we use area scoring, we always compute this feature
+    private static func fillGlobalFeature18KomiParityWave(global: MLMultiArray, selfKomi: Float) {
+        let xSize = 19
+        let ySize = 19
+        let boardAreaIsEven = (xSize * ySize) % 2 == 0
+        // For 19x19: 361 % 2 = 1 (odd), so boardAreaIsEven = false
         
-        // Feature 18: Komi parity wave (optional optimization)
-        // global[18] = 0.0  // Already 0 (can be computed later)
+        // What is the parity of the komi values that can produce jigos?
+        let drawableKomisAreEven = boardAreaIsEven
+        
+        // Find the difference between the komi viewed from our perspective and the nearest drawable komi below it
+        let komiFloor: Float
+        if drawableKomisAreEven {
+            komiFloor = floor(selfKomi / 2.0) * 2.0
+        } else {
+            komiFloor = floor((selfKomi - 1.0) / 2.0) * 2.0 + 1.0
+        }
+        
+        // Cap just in case we have floating point weirdness
+        var delta = selfKomi - komiFloor
+        // Clamp delta to [0.0, 2.0]
+        if delta < 0.0 {
+            delta = 0.0
+        }
+        if delta > 2.0 {
+            delta = 2.0
+        }
+        
+        // Create the triangle wave based on the difference
+        let wave: Float
+        if delta < 0.5 {
+            wave = delta
+        } else if delta < 1.5 {
+            wave = 1.0 - delta
+        } else {
+            wave = delta - 2.0
+        }
+        
+        global[18] = NSNumber(value: wave)
     }
 }
 

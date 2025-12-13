@@ -1143,3 +1143,234 @@ import CoreML
     #expect(feature14 == 1.0)
 }
 
+// MARK: - Global Feature 18: Komi Parity Wave Tests
+
+@Test func testGlobalFeature18BasicKomiZero() async throws {
+    // Test with komi = 0.0
+    // For 19x19 (odd area): drawableKomisAreEven = false
+    // komiFloor = floor((0.0 - 1.0) / 2.0) * 2.0 + 1.0 = floor(-0.5) * 2.0 + 1.0 = -1.0 * 2.0 + 1.0 = -1.0
+    // delta = 0.0 - (-1.0) = 1.0
+    // wave = 1.0 - 1.0 = 0.0 (since delta >= 0.5 and < 1.5)
+    let board = Board()
+    let boardState = BoardState(board: board, nextPlayer: .black, komi: 0.0)
+    let feature18 = boardState.global[18].floatValue
+    #expect(abs(feature18 - 0.0) < 0.0001)
+}
+
+@Test func testGlobalFeature18BasicKomiHalf() async throws {
+    // Test with komi = 0.5, black to move
+    // selfKomi = -0.5 (for black)
+    // komiFloor = floor((-0.5 - 1.0) / 2.0) * 2.0 + 1.0 = floor(-1.5 / 2.0) * 2.0 + 1.0 = floor(-0.75) * 2.0 + 1.0 = -1.0 * 2.0 + 1.0 = -1.0
+    // delta = -0.5 - (-1.0) = 0.5
+    // wave = 1.0 - 0.5 = 0.5 (since delta >= 0.5 and < 1.5)
+    let board = Board()
+    let boardState = BoardState(board: board, nextPlayer: .black, komi: 0.5)
+    let feature18 = boardState.global[18].floatValue
+    #expect(abs(feature18 - 0.5) < 0.0001)
+}
+
+@Test func testGlobalFeature18BasicKomiOne() async throws {
+    // Test with komi = 1.0
+    // komiFloor = floor((1.0 - 1.0) / 2.0) * 2.0 + 1.0 = floor(0.0) * 2.0 + 1.0 = 0.0 + 1.0 = 1.0
+    // delta = 1.0 - 1.0 = 0.0
+    // wave = 0.0 (since delta < 0.5)
+    let board = Board()
+    let boardState = BoardState(board: board, nextPlayer: .black, komi: 1.0)
+    let feature18 = boardState.global[18].floatValue
+    #expect(abs(feature18 - 0.0) < 0.0001)
+}
+
+@Test func testGlobalFeature18BasicKomiOneAndHalf() async throws {
+    // Test with komi = 1.5, black to move
+    // selfKomi = -1.5 (for black)
+    // komiFloor = floor((-1.5 - 1.0) / 2.0) * 2.0 + 1.0 = floor(-2.5 / 2.0) * 2.0 + 1.0 = floor(-1.25) * 2.0 + 1.0 = -2.0 * 2.0 + 1.0 = -3.0
+    // delta = -1.5 - (-3.0) = 1.5
+    // wave = 1.5 - 2.0 = -0.5 (since delta >= 1.5)
+    let board = Board()
+    let boardState = BoardState(board: board, nextPlayer: .black, komi: 1.5)
+    let feature18 = boardState.global[18].floatValue
+    #expect(abs(feature18 - (-0.5)) < 0.0001)
+}
+
+@Test func testGlobalFeature18BasicKomiTwo() async throws {
+    // Test with komi = 2.0
+    // komiFloor = floor((2.0 - 1.0) / 2.0) * 2.0 + 1.0 = floor(0.5) * 2.0 + 1.0 = 0.0 + 1.0 = 1.0
+    // delta = 2.0 - 1.0 = 1.0
+    // wave = 1.0 - 1.0 = 0.0 (since delta >= 0.5 and < 1.5)
+    let board = Board()
+    let boardState = BoardState(board: board, nextPlayer: .black, komi: 2.0)
+    let feature18 = boardState.global[18].floatValue
+    #expect(abs(feature18 - 0.0) < 0.0001)
+}
+
+@Test func testGlobalFeature18BasicKomiSevenAndHalf() async throws {
+    // Test with komi = 7.5 (standard komi), black to move
+    // selfKomi = -7.5 (for black)
+    // komiFloor = floor((-7.5 - 1.0) / 2.0) * 2.0 + 1.0 = floor(-8.5 / 2.0) * 2.0 + 1.0 = floor(-4.25) * 2.0 + 1.0 = -5.0 * 2.0 + 1.0 = -9.0
+    // delta = -7.5 - (-9.0) = 1.5
+    // wave = 1.5 - 2.0 = -0.5 (since delta >= 1.5)
+    let board = Board()
+    let boardState = BoardState(board: board, nextPlayer: .black, komi: 7.5)
+    let feature18 = boardState.global[18].floatValue
+    #expect(abs(feature18 - (-0.5)) < 0.0001)
+}
+
+@Test func testGlobalFeature18WaveBoundaryDeltaZero() async throws {
+    // Test delta = 0.0 boundary
+    // This happens when selfKomi exactly equals komiFloor
+    // For black: selfKomi = -komi, so we need komi such that komiFloor = -komi
+    // For komi = 1.0, black: selfKomi = -1.0, komiFloor = -1.0, delta = 0.0
+    let board = Board()
+    let boardState = BoardState(board: board, nextPlayer: .black, komi: 1.0)
+    let feature18 = boardState.global[18].floatValue
+    // delta = 0.0, wave = 0.0
+    #expect(abs(feature18 - 0.0) < 0.0001)
+}
+
+@Test func testGlobalFeature18WaveBoundaryDeltaHalf() async throws {
+    // Test delta = 0.5 boundary
+    // For black with komi = 1.5: selfKomi = -1.5, komiFloor = -1.0, delta = -0.5 (clamped to 0.0)
+    // Actually, let me recalculate: komiFloor = floor((-1.5 - 1.0) / 2.0) * 2.0 + 1.0 = floor(-1.25) * 2.0 + 1.0 = -2.0 + 1.0 = -1.0
+    // delta = -1.5 - (-1.0) = -0.5, clamped to 0.0
+    // That's not right. Let me think about this differently.
+    // For white with komi = 1.5: selfKomi = 1.5, komiFloor = 1.0, delta = 0.5
+    // wave = 1.0 - 0.5 = 0.5
+    let board = Board()
+    let boardState = BoardState(board: board, nextPlayer: .white, komi: 1.5)
+    let feature18 = boardState.global[18].floatValue
+    #expect(abs(feature18 - 0.5) < 0.0001)
+}
+
+@Test func testGlobalFeature18WaveBoundaryDeltaOneAndHalf() async throws {
+    // Test delta = 1.5 boundary
+    // For white with komi = 2.5: selfKomi = 2.5, komiFloor = 1.0, delta = 1.5
+    // wave = 1.0 - 1.5 = -0.5 (since delta >= 0.5 and < 1.5, but wait delta == 1.5, so second branch is false)
+    // Actually, delta == 1.5, so delta < 1.5 is false, so we go to else: wave = 1.5 - 2.0 = -0.5
+    let board = Board()
+    let boardState = BoardState(board: board, nextPlayer: .white, komi: 2.5)
+    let feature18 = boardState.global[18].floatValue
+    #expect(abs(feature18 - (-0.5)) < 0.0001)
+}
+
+@Test func testGlobalFeature18WaveBoundaryDeltaTwo() async throws {
+    // Test delta = 2.0 boundary
+    // For white with komi = 3.0: selfKomi = 3.0, komiFloor = 1.0, delta = 2.0
+    // wave = 2.0 - 2.0 = 0.0
+    let board = Board()
+    let boardState = BoardState(board: board, nextPlayer: .white, komi: 3.0)
+    let feature18 = boardState.global[18].floatValue
+    #expect(abs(feature18 - 0.0) < 0.0001)
+}
+
+@Test func testGlobalFeature18PerspectiveBlackVsWhite() async throws {
+    // Test that perspective switching produces different wave values
+    // For komi = 7.5:
+    // Black: selfKomi = -7.5, komiFloor = floor((-7.5 - 1.0) / 2.0) * 2.0 + 1.0 = floor(-4.25) * 2.0 + 1.0 = -9.0 + 1.0 = -8.0
+    // delta = -7.5 - (-8.0) = 0.5, wave = 1.0 - 0.5 = 0.5
+    // White: selfKomi = 7.5, komiFloor = floor((7.5 - 1.0) / 2.0) * 2.0 + 1.0 = 7.0
+    // delta = 7.5 - 7.0 = 0.5, wave = 1.0 - 0.5 = 0.5
+    // Actually, they're the same! Let me try a different komi value.
+    // For komi = 0.0:
+    // Black: selfKomi = 0.0, komiFloor = -1.0, delta = 1.0, wave = 0.0
+    // White: selfKomi = 0.0, komiFloor = -1.0, delta = 1.0, wave = 0.0
+    // Hmm, they're the same too. Let me try komi = 0.5:
+    // Black: selfKomi = -0.5, komiFloor = -1.0, delta = 0.5, wave = 1.0 - 0.5 = 0.5
+    // White: selfKomi = 0.5, komiFloor = -1.0, delta = 1.5, wave = 1.5 - 2.0 = -0.5
+    // These are different!
+    let board = Board()
+    let boardStateBlack = BoardState(board: board, nextPlayer: .black, komi: 0.5)
+    let boardStateWhite = BoardState(board: board, nextPlayer: .white, komi: 0.5)
+    let feature18Black = boardStateBlack.global[18].floatValue
+    let feature18White = boardStateWhite.global[18].floatValue
+    // They should be different
+    #expect(abs(feature18Black - feature18White) > 0.1)
+}
+
+@Test func testGlobalFeature18PerspectiveSymmetry() async throws {
+    // Test that the wave values are symmetric (or related) when switching perspective
+    // For komi = 1.0:
+    // Black: selfKomi = -1.0, komiFloor = -1.0, delta = 0.0, wave = 0.0
+    // White: selfKomi = 1.0, komiFloor = 1.0, delta = 0.0, wave = 0.0
+    // They're the same for this case
+    let board = Board()
+    let boardStateBlack = BoardState(board: board, nextPlayer: .black, komi: 1.0)
+    let boardStateWhite = BoardState(board: board, nextPlayer: .white, komi: 1.0)
+    let feature18Black = boardStateBlack.global[18].floatValue
+    let feature18White = boardStateWhite.global[18].floatValue
+    #expect(abs(feature18Black - feature18White) < 0.0001)
+}
+
+@Test func testGlobalFeature18ExtremeKomiPositive() async throws {
+    // Test with extreme positive komi (should still work after clipping)
+    let board = Board()
+    let extremeKomi: Float = 100.0
+    let boardState = BoardState(board: board, nextPlayer: .white, komi: extremeKomi)
+    let feature18 = boardState.global[18].floatValue
+    // Should compute without crashing, value should be in valid range [-0.5, 0.5]
+    #expect(feature18 >= -0.5)
+    #expect(feature18 <= 0.5)
+}
+
+@Test func testGlobalFeature18ExtremeKomiNegative() async throws {
+    // Test with extreme negative komi (should still work after clipping)
+    let board = Board()
+    let extremeKomi: Float = -100.0
+    let boardState = BoardState(board: board, nextPlayer: .black, komi: extremeKomi)
+    let feature18 = boardState.global[18].floatValue
+    // Should compute without crashing, value should be in valid range [-0.5, 0.5]
+    #expect(feature18 >= -0.5)
+    #expect(feature18 <= 0.5)
+}
+
+@Test func testGlobalFeature18TriangularWaveShape() async throws {
+    // Test that the wave follows the expected triangular pattern
+    // For white with komi values around a drawable komi (1.0):
+    // komi = 0.5: delta should be around 0.5, wave should be around 0.5
+    // komi = 1.0: delta should be 0.0, wave should be 0.0
+    // komi = 1.5: delta should be 0.5, wave should be 0.5
+    // komi = 2.0: delta should be 1.0, wave should be 0.0
+    // komi = 2.5: delta should be 1.5, wave should be -0.5
+    // komi = 3.0: delta should be 2.0, wave should be 0.0
+    let board = Board()
+    
+    // Test peak at komi = 1.5 (delta = 0.5, wave = 0.5)
+    let boardState1 = BoardState(board: board, nextPlayer: .white, komi: 1.5)
+    let wave1 = boardState1.global[18].floatValue
+    #expect(abs(wave1 - 0.5) < 0.0001)
+    
+    // Test valley at komi = 2.5 (delta = 1.5, wave = -0.5)
+    let boardState2 = BoardState(board: board, nextPlayer: .white, komi: 2.5)
+    let wave2 = boardState2.global[18].floatValue
+    #expect(abs(wave2 - (-0.5)) < 0.0001)
+    
+    // Test zero at komi = 2.0 (delta = 1.0, wave = 0.0)
+    let boardState3 = BoardState(board: board, nextPlayer: .white, komi: 2.0)
+    let wave3 = boardState3.global[18].floatValue
+    #expect(abs(wave3 - 0.0) < 0.0001)
+}
+
+@Test func testGlobalFeature18NegativeKomi() async throws {
+    // Test with negative komi values
+    // For black with komi = -1.0: selfKomi = -(-1.0) = 1.0
+    // komiFloor = floor((1.0 - 1.0) / 2.0) * 2.0 + 1.0 = 1.0
+    // delta = 1.0 - 1.0 = 0.0, wave = 0.0
+    let board = Board()
+    let boardState = BoardState(board: board, nextPlayer: .black, komi: -1.0)
+    let feature18 = boardState.global[18].floatValue
+    #expect(abs(feature18 - 0.0) < 0.0001)
+}
+
+@Test func testGlobalFeature18MultipleKomiValues() async throws {
+    // Test multiple komi values to verify wave pattern
+    let board = Board()
+    let komiValues: [Float] = [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 7.5]
+    
+    for komi in komiValues {
+        let boardState = BoardState(board: board, nextPlayer: .white, komi: komi)
+        let feature18 = boardState.global[18].floatValue
+        // Wave should be in valid range [-0.5, 0.5]
+        #expect(feature18 >= -0.5)
+        #expect(feature18 <= 0.5)
+    }
+}
+
