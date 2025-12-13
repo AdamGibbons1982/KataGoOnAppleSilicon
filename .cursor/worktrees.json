@@ -1,0 +1,14 @@
+{
+  "worktrees": [
+    {
+      "name": "mlpackage-resources",
+      "path": "Sources/KataGoOnAppleSilicon/Models/Resources",
+      "description": "Core ML model package files for testing",
+      "resources": [
+        "KataGoModel19x19fp16-adam-s11165M.mlpackage",
+        "KataGoModel19x19fp16m1.mlpackage"
+      ]
+    }
+  ]
+}
+
