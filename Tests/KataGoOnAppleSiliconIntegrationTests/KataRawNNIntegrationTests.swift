@@ -40,12 +40,28 @@ struct KataRawNNIntegrationTests {
             let refLine = i < referenceLines.count ? referenceLines[i] : ""
             
             if swiftLine != refLine {
-                // Try to compare as floating point if both lines contain numbers
-                if let swiftFloat = parseFloatLine(swiftLine),
-                   let refFloat = parseFloatLine(refLine) {
-                    let diff = abs(swiftFloat - refFloat)
-                    if diff > tolerance {
-                        mismatches.append("Line \(i + 1): Swift=\(swiftLine), Reference=\(refLine) (diff: \(diff))")
+                // Try to compare as floating point values if both lines contain numbers
+                let swiftFloats = parseFloatLine(swiftLine)
+                let refFloats = parseFloatLine(refLine)
+                
+                if !swiftFloats.isEmpty && !refFloats.isEmpty {
+                    // Compare all float values on the line
+                    if swiftFloats.count == refFloats.count {
+                        var lineMatches = true
+                        var maxDiff: Float = 0.0
+                        for j in 0..<swiftFloats.count {
+                            let diff = abs(swiftFloats[j] - refFloats[j])
+                            maxDiff = max(maxDiff, diff)
+                            if diff > tolerance {
+                                lineMatches = false
+                            }
+                        }
+                        if !lineMatches {
+                            mismatches.append("Line \(i + 1): Max diff=\(maxDiff), Swift=\(swiftLine.prefix(80)), Reference=\(refLine.prefix(80))")
+                        }
+                    } else {
+                        // Different number of values
+                        mismatches.append("Line \(i + 1): Value count mismatch (Swift=\(swiftFloats.count), Ref=\(refFloats.count))")
                     }
                 } else {
                     // Exact string comparison for non-numeric lines
@@ -61,16 +77,16 @@ struct KataRawNNIntegrationTests {
         }
     }
     
-    /// Parse a line that might contain a float value
-    private func parseFloatLine(_ line: String) -> Float? {
-        // Try to extract first float from line
+    /// Parse a line that might contain float values (returns all floats found)
+    private func parseFloatLine(_ line: String) -> [Float] {
         let components = line.split(separator: " ")
+        var floats: [Float] = []
         for component in components {
             if let value = Float(component) {
-                return value
+                floats.append(value)
             }
         }
-        return nil
+        return floats
     }
     
     struct ComparisonResult {
@@ -90,7 +106,18 @@ extension KataRawNNIntegrationTests {
     
     @Test func testKataRawNNEmptyBoard() async throws {
         // Load reference file
-        let referenceOutput = try loadReferenceFile(testCase: "empty_board", symmetry: 0)
+        var referenceOutput = try loadReferenceFile(testCase: "empty_board", symmetry: 0)
+        
+        // Strip GTP "= " prefix from reference file if present
+        // The reference file from GTP includes "= symmetry 0" but rawNN() doesn't include this prefix
+        if referenceOutput.hasPrefix("= ") {
+            // Remove "= " from the first line
+            let lines = referenceOutput.components(separatedBy: .newlines)
+            if !lines.isEmpty && lines[0].hasPrefix("= ") {
+                let firstLine = String(lines[0].dropFirst(2)) // Remove "= "
+                referenceOutput = ([firstLine] + lines.dropFirst()).joined(separator: "\n")
+            }
+        }
         
         // Generate Swift output
         let katago = KataGoInference()
@@ -106,36 +133,21 @@ extension KataRawNNIntegrationTests {
             whichSymmetry: 0
         )
         
-        // Compare outputs
-        let result = compareOutputs(swift: swiftOutput, reference: referenceOutput)
+        // Compare outputs with exact matching (tolerance for floating-point values)
+        let result = compareOutputs(swift: swiftOutput, reference: referenceOutput, tolerance: 0.000001)
         
         if !result.matches {
             print("Mismatches found:")
-            for mismatch in result.mismatches.prefix(10) {
+            for mismatch in result.mismatches.prefix(20) {
                 print("  \(mismatch)")
             }
-            if result.mismatches.count > 10 {
-                print("  ... and \(result.mismatches.count - 10) more mismatches")
+            if result.mismatches.count > 20 {
+                print("  ... and \(result.mismatches.count - 20) more mismatches")
             }
         }
         
-        // For now, just verify structure matches (exact value matching may need adjustment)
-        // Check that both have the same structure
-        let swiftLines = swiftOutput.components(separatedBy: .newlines)
-        let refLines = referenceOutput.components(separatedBy: .newlines)
-        
-        // Verify both have policy and ownership sections
-        let swiftHasPolicy = swiftOutput.contains("policy")
-        let swiftHasOwnership = swiftOutput.contains("whiteOwnership")
-        let refHasPolicy = referenceOutput.contains("policy")
-        let refHasOwnership = referenceOutput.contains("whiteOwnership")
-        
-        #expect(swiftHasPolicy == refHasPolicy)
-        #expect(swiftHasOwnership == refHasOwnership)
-        
-        // Verify line counts are similar (allowing for minor differences)
-        let lineCountDiff = abs(swiftLines.count - refLines.count)
-        #expect(lineCountDiff <= 5, "Line count difference too large: Swift=\(swiftLines.count), Reference=\(refLines.count)")
+        // Expect exact match (within floating-point tolerance)
+        #expect(result.matches, "Output should match reference exactly (within tolerance)")
     }
     
     @Test func testKataRawNNSymmetry0() async throws {

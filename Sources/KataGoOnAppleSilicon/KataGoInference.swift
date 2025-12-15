@@ -216,7 +216,7 @@ public class KataGoInference {
                 if value.isNaN {
                     lineValues.append("    NAN ")
                 } else {
-                    lineValues.append(String(format: "%8.6f", value))
+                    lineValues.append(String(format: "%8.6f ", value))
                 }
             }
             result += lineValues.joined(separator: " ") + "\n"
@@ -269,7 +269,7 @@ public class KataGoInference {
                 if value.isNaN {
                     lineValues.append("     NAN ")
                 } else {
-                    lineValues.append(String(format: "%9.7f", value))
+                    lineValues.append(String(format: "%9.7f ", value))
                 }
             }
             result += lineValues.joined(separator: " ") + "\n"
