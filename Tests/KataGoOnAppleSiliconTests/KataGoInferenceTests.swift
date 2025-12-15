@@ -11,32 +11,20 @@ import CoreML
 
 @Test func testLoadModelForAIProfile() async throws {
     let katago = KataGoInference()
-    do {
-        try katago.loadModel(for: "AI")
-        #expect(Bool(true))
-    } catch {
-        print("Model load failed in test: \(error)")
-    }
+    try katago.loadModel(for: "AI")
+    #expect(Bool(true))
 }
 
 @Test func testLoadModelFor9dProfile() async throws {
     let katago = KataGoInference()
-    do {
-        try katago.loadModel(for: "9d")
-        #expect(Bool(true))
-    } catch {
-        print("Model load failed in test: \(error)")
-    }
+    try katago.loadModel(for: "9d")
+    #expect(Bool(true))
 }
 
 @Test func testLoadModelFor20kProfile() async throws {
     let katago = KataGoInference()
-    do {
-        try katago.loadModel(for: "20k")
-        #expect(Bool(true))
-    } catch {
-        print("Model load failed in test: \(error)")
-    }
+    try katago.loadModel(for: "20k")
+    #expect(Bool(true))
 }
 
 @Test func testLoadModelForUnsupportedProfile() async throws {

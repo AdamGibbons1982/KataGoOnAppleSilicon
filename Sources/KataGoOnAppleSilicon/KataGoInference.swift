@@ -41,8 +41,7 @@ public class KataGoInference {
     /// - Parameters:
     ///   - board: BoardState with input features
     ///   - profile: Model profile to use
-    ///   - debugDump: If true, dump inputs and raw outputs to debug files
-    public func predict(board: BoardState, profile: String, debugDump: Bool = false) throws -> ModelOutput {
+    public func predict(board: BoardState, profile: String) throws -> ModelOutput {
         guard let model = models[profile] else {
             throw KataGoError.modelNotFound("Model for profile \(profile) not loaded")
         }
@@ -50,11 +49,6 @@ public class KataGoInference {
         let startTime = Date()
         
         do {
-            // Dump inputs before inference
-            if debugDump {
-                DebugDump.dumpRawInputs(spatial: board.spatial, global: board.global)
-            }
-            
             let input = try MLDictionaryFeatureProvider(dictionary: [
                 "input_spatial": board.spatial,
                 "input_global": board.global
@@ -71,17 +65,6 @@ public class KataGoInference {
             // Extract optional misc value arrays
             let miscValueArray = prediction.featureValue(for: "out_miscvalue")?.multiArrayValue
             let moreMiscValueArray = prediction.featureValue(for: "out_moremiscvalue")?.multiArrayValue
-            
-            // Dump raw outputs after inference
-            if debugDump {
-                DebugDump.dumpRawOutputs(
-                    policy: policy,
-                    value: valueArray,
-                    ownership: ownership,
-                    miscValue: miscValueArray,
-                    moreMiscValue: moreMiscValueArray
-                )
-            }
             
             let output = ModelOutput(
                 policy: policy,
@@ -114,7 +97,6 @@ public class KataGoInference {
     ///   - whichSymmetry: Symmetry index (0-7) or 8 for all symmetries
     ///   - policyOptimism: Optional policy optimism value (0.0-1.0), defaults to 0.0
     ///   - useHumanModel: Whether to use human SL model (affects output format)
-    ///   - debugDump: If true, dump inputs, raw outputs, and postprocessed outputs to debug files
     /// - Returns: Formatted string matching KataGo's kata-raw-nn output
     public func rawNN(
         board: Board,
@@ -122,39 +104,32 @@ public class KataGoInference {
         profile: String,
         whichSymmetry: Int = 0,
         policyOptimism: Float? = nil,
-        useHumanModel: Bool = false,
-        debugDump: Bool = false
+        useHumanModel: Bool = false
     ) throws -> String {
         // Get model prediction
-        let output = try predict(board: boardState, profile: profile, debugDump: debugDump)
+        let output = try predict(board: boardState, profile: profile)
         
         // Determine next player (black moves first, so turnNumber % 2 == 0 means black)
         let nextPlayer: Stone = board.turnNumber % 2 == 0 ? .black : .white
         
         // Post-process model outputs
+        // Use modelVersion 15 and parameters from actual model description
+        // (The model description has outputScaleMultiplier = 1.0, shorttermScoreErrorMultiplier = 150.0)
+        let postProcessParams = PostProcessParams(
+            outputScaleMultiplier: 1.0,  // Model uses 1.0, not 8.0
+            scoreMeanMultiplier: 20.0,
+            scoreStdevMultiplier: 20.0,
+            leadMultiplier: 20.0,
+            varianceTimeMultiplier: 40.0,
+            shorttermValueErrorMultiplier: 0.25,
+            shorttermScoreErrorMultiplier: 150.0  // Model uses 150.0, not 30.0
+        )
         let postprocessed = output.postprocess(
             board: board,
             nextPlayer: nextPlayer,
-            modelVersion: 8, // Models are version 8+
-            postProcessParams: .default
+            modelVersion: 15, // Actual model version is 15, not 8
+            postProcessParams: postProcessParams
         )
-        
-        // Dump postprocessed outputs
-        if debugDump {
-            DebugDump.dumpPostprocessedOutputs(
-                policyProbs: postprocessed.policyProbs,
-                ownership: postprocessed.ownership,
-                whiteWinProb: postprocessed.whiteWinProb,
-                whiteLossProb: postprocessed.whiteLossProb,
-                whiteNoResultProb: postprocessed.whiteNoResultProb,
-                whiteScoreMean: postprocessed.whiteScoreMean,
-                whiteScoreMeanSq: postprocessed.whiteScoreMeanSq,
-                whiteLead: postprocessed.whiteLead,
-                varTimeLeft: postprocessed.varTimeLeft,
-                shorttermWinlossError: postprocessed.shorttermWinlossError,
-                shorttermScoreError: postprocessed.shorttermScoreError
-            )
-        }
         
         // Format output based on model type
         var result = ""

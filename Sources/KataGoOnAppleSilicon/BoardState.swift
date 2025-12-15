@@ -757,17 +757,10 @@ public struct ModelOutput {
         }
     }
     
-    /// Extract shorttermWinlossError - try miscValueArray[4] first, then moreMiscValueArray[0]
+    /// Extract shorttermWinlossError - use moreMiscValueArray[0] for modelVersion >= 9 (matches C++ coremlbackend.cpp)
     public var shorttermWinlossError: Float? {
-        // Try miscValueArray[4] first (for modelVersion >= 9)
-        if let array = miscValueArray, array.count > 4 {
-            if array.shape.count >= 2 && array.shape[1].intValue > 4 {
-                return array[[0, 4]].floatValue
-            } else {
-                return array[4].floatValue
-            }
-        }
-        // Fallback to moreMiscValueArray[0]
+        // For modelVersion >= 9, C++ backend uses moreMiscValuesOutputBuf[0], not miscValuesOutputBuf[4]
+        // See coremlbackend.cpp line 164-165
         guard let array = moreMiscValueArray, array.count > 0 else { return nil }
         if array.shape.count >= 2 {
             return array[[0, 0]].floatValue
@@ -776,17 +769,10 @@ public struct ModelOutput {
         }
     }
     
-    /// Extract shorttermScoreError - try miscValueArray[5] first, then moreMiscValueArray[1]
+    /// Extract shorttermScoreError - use moreMiscValueArray[1] for modelVersion >= 9 (matches C++ coremlbackend.cpp)
     public var shorttermScoreError: Float? {
-        // Try miscValueArray[5] first (for modelVersion >= 9)
-        if let array = miscValueArray, array.count > 5 {
-            if array.shape.count >= 2 && array.shape[1].intValue > 5 {
-                return array[[0, 5]].floatValue
-            } else {
-                return array[5].floatValue
-            }
-        }
-        // Fallback to moreMiscValueArray[1]
+        // For modelVersion >= 9, C++ backend uses moreMiscValuesOutputBuf[1], not miscValuesOutputBuf[5]
+        // See coremlbackend.cpp line 166
         guard let array = moreMiscValueArray, array.count > 1 else { return nil }
         if array.shape.count >= 2 && array.shape[1].intValue > 1 {
             return array[[0, 1]].floatValue
