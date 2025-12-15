@@ -18,6 +18,7 @@ let package = Package(
         // Targets can depend on other targets in this package and products from dependencies.
         .target(
             name: "KataGoOnAppleSilicon",
+            exclude: ["InputFeatures.md"],
             resources: [.copy("Models/Resources")]
         ),
         .testTarget(
@@ -26,7 +27,8 @@ let package = Package(
         ),
         .testTarget(
             name: "KataGoOnAppleSiliconIntegrationTests",
-            dependencies: ["KataGoOnAppleSilicon"]
+            dependencies: ["KataGoOnAppleSilicon"],
+            resources: [.copy("ReferenceOutputs")]
         ),
     ]
 )

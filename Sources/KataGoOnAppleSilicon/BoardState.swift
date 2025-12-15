@@ -45,9 +45,11 @@ public struct BoardState {
         fillPlanes3To5Liberties(spatial: spatial, board: board)
         fillPlane6KoBan(spatial: spatial, board: board)
         fillPlane7KoRecaptureBlocked(spatial: spatial)
+        fillPlane8EncoreKoRecaptureBlocked(spatial: spatial)
         fillPlanes9To13History(spatial: spatial, global: global, board: board, nextPlayer: nextPlayer)
         fillPlanes14To17Ladders(spatial: spatial, board: board, nextPlayer: nextPlayer)
         fillPlanes18And19Area(spatial: spatial, board: board, nextPlayer: nextPlayer)
+        fillPlanes20And21EncoreStones(spatial: spatial)
     }
     
     /// Fill plane 0: On board (always 1.0 for all valid positions)
@@ -61,6 +63,15 @@ public struct BoardState {
     
     /// Fill planes 1-2: Own and opponent stones (perspective-based)
     private static func fillPlanes1And2Stones(spatial: MLMultiArray, board: Board, nextPlayer: Stone) {
+        // Explicitly zero out planes 1-2 first
+        for plane in 1...2 {
+            for y in 0..<19 {
+                for x in 0..<19 {
+                    spatial[[0, NSNumber(value: plane), NSNumber(value: y), NSNumber(value: x)]] = 0.0
+                }
+            }
+        }
+        
         let ownStone = nextPlayer
         let oppStone: Stone = (nextPlayer == .black) ? .white : .black
         
@@ -81,6 +92,15 @@ public struct BoardState {
     
     /// Fill planes 3-5: Liberty counts (1, 2, or 3 liberties)
     private static func fillPlanes3To5Liberties(spatial: MLMultiArray, board: Board) {
+        // Explicitly zero out planes 3-5 first
+        for plane in 3...5 {
+            for y in 0..<19 {
+                for x in 0..<19 {
+                    spatial[[0, NSNumber(value: plane), NSNumber(value: y), NSNumber(value: x)]] = 0.0
+                }
+            }
+        }
+        
         for y in 0..<19 {
             for x in 0..<19 {
                 let stone = board.stones[y][x]
@@ -105,6 +125,13 @@ public struct BoardState {
     
     /// Fill plane 6: Ko-ban (ko prohibition locations)
     private static func fillPlane6KoBan(spatial: MLMultiArray, board: Board) {
+        // Explicitly zero out plane 6 first
+        for y in 0..<19 {
+            for x in 0..<19 {
+                spatial[[0, 6, NSNumber(value: y), NSNumber(value: x)]] = 0.0
+            }
+        }
+        
         if let ko = board.koPoint {
             spatial[[0, 6, NSNumber(value: ko.y), NSNumber(value: ko.x)]] = 1.0
         }
@@ -112,10 +139,24 @@ public struct BoardState {
     
     /// Fill plane 7: Ko recapture blocked (encore ko recapture blocked locations)
     /// For Chinese rules, this plane is all zeros (no encore features)
-    /// MLMultiArray is zero-initialized, so no explicit setting needed, but documented here
     private static func fillPlane7KoRecaptureBlocked(spatial: MLMultiArray) {
-        // Plane 7 is zero-initialized by MLMultiArray
-        // Chinese rules have no encore phase, so all values remain 0.0
+        // Explicitly zero out plane 7 for Chinese rules (no encore features)
+        for y in 0..<19 {
+            for x in 0..<19 {
+                spatial[[0, 7, NSNumber(value: y), NSNumber(value: x)]] = 0.0
+            }
+        }
+    }
+    
+    /// Fill plane 8: Encore ko recapture blocked (encore phase ko recapture blocked locations)
+    /// For Chinese rules, this plane is all zeros (no encore features)
+    private static func fillPlane8EncoreKoRecaptureBlocked(spatial: MLMultiArray) {
+        // Explicitly zero out plane 8 for Chinese rules (no encore features)
+        for y in 0..<19 {
+            for x in 0..<19 {
+                spatial[[0, 8, NSNumber(value: y), NSNumber(value: x)]] = 0.0
+            }
+        }
     }
     
     /// Fill planes 9-13: Move history (last 5 moves)
@@ -226,9 +267,9 @@ public struct BoardState {
         }
         
         let opp: Stone = (nextPlayer == .black) ? .white : .black
-        let numTurnsOfHistoryIncluded = 2 // For Chinese rules, use 2 turns of history
         
         // Feature 14: Current board ladders
+        // Note: We always use 2 turns of history for Chinese rules
         board.iterLadders { loc, workingMoves in
             let y = loc.y
             let x = loc.x
@@ -244,12 +285,8 @@ public struct BoardState {
         }
         
         // Feature 15: Previous board ladders (1 turn ago)
-        let prevBoard: Board
-        if numTurnsOfHistoryIncluded < 1 {
-            prevBoard = board
-        } else {
-            prevBoard = board.getBoardAtTurn(max(0, board.turnNumber - 1))
-        }
+        // numTurnsOfHistoryIncluded is always >= 1, so we always use history
+        let prevBoard = board.getBoardAtTurn(max(0, board.turnNumber - 1))
         prevBoard.iterLadders { loc, workingMoves in
             let y = loc.y
             let x = loc.x
@@ -257,12 +294,8 @@ public struct BoardState {
         }
         
         // Feature 16: Previous-previous board ladders (2 turns ago)
-        let prevPrevBoard: Board
-        if numTurnsOfHistoryIncluded < 2 {
-            prevPrevBoard = prevBoard
-        } else {
-            prevPrevBoard = board.getBoardAtTurn(max(0, board.turnNumber - 2))
-        }
+        // numTurnsOfHistoryIncluded is always >= 2, so we always use history
+        let prevPrevBoard = board.getBoardAtTurn(max(0, board.turnNumber - 2))
         prevPrevBoard.iterLadders { loc, workingMoves in
             let y = loc.y
             let x = loc.x
@@ -301,6 +334,19 @@ public struct BoardState {
                     }
                 }
                 // If owner is nil, both planes remain 0.0 (already zero-initialized)
+            }
+        }
+    }
+    
+    /// Fill planes 20-21: Encore stones (encore phase starting stones)
+    /// For Chinese rules, these planes are all zeros (no encore features)
+    private static func fillPlanes20And21EncoreStones(spatial: MLMultiArray) {
+        // Explicitly zero out planes 20-21 for Chinese rules (no encore features)
+        for plane in 20...21 {
+            for y in 0..<19 {
+                for x in 0..<19 {
+                    spatial[[0, NSNumber(value: plane), NSNumber(value: y), NSNumber(value: x)]] = 0.0
+                }
             }
         }
     }
@@ -529,10 +575,11 @@ public struct BoardState {
     /// Features 12-13: Encore phase (0.0, no encore)
     private static func fillGlobalFeatures6To13ChineseRules(global: MLMultiArray) {
         // Features 6-7: Ko rule encoding
-        // For Chinese rules (simple ko): both are 0.0
-        // - Positional/situational ko would set [6]=1.0, [7]=±0.5
-        // global[6] = 0.0  // Already 0 (simple ko)
-        // global[7] = 0.0  // Already 0
+        // KataGo uses positional/situational ko encoding even for Chinese rules
+        // - Feature 6: 1.0 indicates positional/situational ko
+        // - Feature 7: 0.5 indicates ko rule sub-type
+        global[6] = 1.0
+        global[7] = 0.5
         
         // Feature 8: Multi-stone suicide allowed
         // Chinese rules allow multi-stone suicide
@@ -644,44 +691,258 @@ public struct ModelOutput {
     
     /// Extract whiteWin, whiteLoss, noResult from value array
     public var whiteWin: Float {
-        return valueArray.count > 0 ? valueArray[0].floatValue : 0.0
+        // Use multi-dimensional indexing for shape [1, 3]
+        // Try doubleValue first (works better for float16), fallback to floatValue
+        if valueArray.shape.count >= 2 {
+            let value = valueArray[[0, 0]].doubleValue
+            return value.isNaN ? valueArray[[0, 0]].floatValue : Float(value)
+        } else {
+            let value = valueArray.count > 0 ? valueArray[0].doubleValue : 0.0
+            return value.isNaN ? (valueArray.count > 0 ? valueArray[0].floatValue : 0.0) : Float(value)
+        }
     }
     
     public var whiteLoss: Float {
-        return valueArray.count > 1 ? valueArray[1].floatValue : 0.0
+        // Use multi-dimensional indexing for shape [1, 3]
+        if valueArray.shape.count >= 2 && valueArray.shape[1].intValue > 1 {
+            let value = valueArray[[0, 1]].doubleValue
+            return value.isNaN ? valueArray[[0, 1]].floatValue : Float(value)
+        } else {
+            let value = valueArray.count > 1 ? valueArray[1].doubleValue : 0.0
+            return value.isNaN ? (valueArray.count > 1 ? valueArray[1].floatValue : 0.0) : Float(value)
+        }
     }
     
     public var noResult: Float {
-        return valueArray.count > 2 ? valueArray[2].floatValue : 0.0
+        // Use multi-dimensional indexing for shape [1, 3]
+        if valueArray.shape.count >= 2 && valueArray.shape[1].intValue > 2 {
+            let value = valueArray[[0, 2]].doubleValue
+            return value.isNaN ? valueArray[[0, 2]].floatValue : Float(value)
+        } else {
+            let value = valueArray.count > 2 ? valueArray[2].doubleValue : 0.0
+            return value.isNaN ? (valueArray.count > 2 ? valueArray[2].floatValue : 0.0) : Float(value)
+        }
     }
     
     /// Extract whiteScoreMean from miscValueArray[0]
     public var whiteScoreMean: Float? {
         guard let array = miscValueArray, array.count > 0 else { return nil }
-        return array[0].floatValue
+        // Use multi-dimensional indexing for shape [1, N]
+        if array.shape.count >= 2 {
+            return array[[0, 0]].floatValue
+        } else {
+            return array[0].floatValue
+        }
     }
     
     /// Extract whiteScoreMeanSq from miscValueArray[1]
     public var whiteScoreMeanSq: Float? {
         guard let array = miscValueArray, array.count > 1 else { return nil }
-        return array[1].floatValue
+        // Use multi-dimensional indexing for shape [1, N]
+        if array.shape.count >= 2 && array.shape[1].intValue > 1 {
+            return array[[0, 1]].floatValue
+        } else {
+            return array[1].floatValue
+        }
     }
     
     /// Extract varTimeLeft from miscValueArray[3]
     public var varTimeLeft: Float? {
         guard let array = miscValueArray, array.count > 3 else { return nil }
-        return array[3].floatValue
+        // Use multi-dimensional indexing for shape [1, N]
+        if array.shape.count >= 2 && array.shape[1].intValue > 3 {
+            return array[[0, 3]].floatValue
+        } else {
+            return array[3].floatValue
+        }
     }
     
-    /// Extract shorttermWinlossError from moreMiscValueArray[0]
+    /// Extract shorttermWinlossError - try miscValueArray[4] first, then moreMiscValueArray[0]
     public var shorttermWinlossError: Float? {
+        // Try miscValueArray[4] first (for modelVersion >= 9)
+        if let array = miscValueArray, array.count > 4 {
+            if array.shape.count >= 2 && array.shape[1].intValue > 4 {
+                return array[[0, 4]].floatValue
+            } else {
+                return array[4].floatValue
+            }
+        }
+        // Fallback to moreMiscValueArray[0]
         guard let array = moreMiscValueArray, array.count > 0 else { return nil }
-        return array[0].floatValue
+        if array.shape.count >= 2 {
+            return array[[0, 0]].floatValue
+        } else {
+            return array[0].floatValue
+        }
     }
     
-    /// Extract shorttermScoreError from moreMiscValueArray[1]
+    /// Extract shorttermScoreError - try miscValueArray[5] first, then moreMiscValueArray[1]
     public var shorttermScoreError: Float? {
+        // Try miscValueArray[5] first (for modelVersion >= 9)
+        if let array = miscValueArray, array.count > 5 {
+            if array.shape.count >= 2 && array.shape[1].intValue > 5 {
+                return array[[0, 5]].floatValue
+            } else {
+                return array[5].floatValue
+            }
+        }
+        // Fallback to moreMiscValueArray[1]
         guard let array = moreMiscValueArray, array.count > 1 else { return nil }
-        return array[1].floatValue
+        if array.shape.count >= 2 && array.shape[1].intValue > 1 {
+            return array[[0, 1]].floatValue
+        } else {
+            return array[1].floatValue
+        }
+    }
+    
+    /// Extract whiteLead from miscValueArray[2] (for modelVersion >= 9)
+    public var whiteLead: Float? {
+        guard let array = miscValueArray, array.count > 2 else { return nil }
+        // Use multi-dimensional indexing for shape [1, N]
+        if array.shape.count >= 2 && array.shape[1].intValue > 2 {
+            return array[[0, 2]].floatValue
+        } else {
+            return array[2].floatValue
+        }
+    }
+    
+    /// Extract raw policy values as a flat array [362] (361 board positions + 1 pass)
+    private func extractRawPolicy() -> [Float] {
+        var rawPolicy = Array(repeating: Float(0.0), count: 362)
+        let shape = policy.shape.map { $0.intValue }
+        let dimCount = shape.count
+        
+        // Extract board positions (0-360)
+        for y in 0..<19 {
+            for x in 0..<19 {
+                let positionIndex = y * 19 + x
+                let value: Float
+                
+                if dimCount == 3 && shape[1] == 6 && shape[2] == 362 {
+                    // [1, 6, 362] format - channel 0 is the main policy channel
+                    value = policy[[0, 0, NSNumber(value: positionIndex)]].floatValue
+                } else if dimCount == 4 {
+                    if shape[1] == 19 {
+                        // [1, 19, 19, channels]
+                        value = policy[[0, NSNumber(value: y), NSNumber(value: x), 0]].floatValue
+                    } else {
+                        // [1, channels, 19, 19]
+                        value = policy[[0, 0, NSNumber(value: y), NSNumber(value: x)]].floatValue
+                    }
+                } else if dimCount == 3 && shape[1] == 19 {
+                    // [1, 19, 19]
+                    value = policy[[0, NSNumber(value: y), NSNumber(value: x)]].floatValue
+                } else {
+                    // Fallback
+                    if positionIndex < policy.count {
+                        value = policy[positionIndex].floatValue
+                    } else {
+                        value = 0.0
+                    }
+                }
+                
+                rawPolicy[positionIndex] = value
+            }
+        }
+        
+        // Extract pass move (index 361)
+        if dimCount == 3 && shape[1] == 6 && shape[2] == 362 {
+            rawPolicy[361] = policy[[0, 0, NSNumber(value: 361)]].floatValue
+        } else if policy.count > 361 {
+            rawPolicy[361] = policy[361].floatValue
+        }
+        
+        return rawPolicy
+    }
+    
+    /// Extract raw ownership values as a flat array [361] (19x19 board)
+    private func extractRawOwnership() -> [Float] {
+        var rawOwnership = Array(repeating: Float(0.0), count: 19 * 19)
+        let shape = ownership.shape.map { $0.intValue }
+        let is4D = shape.count == 4
+        
+        for y in 0..<19 {
+            for x in 0..<19 {
+                let positionIndex = y * 19 + x
+                let value: Float
+                
+                if is4D {
+                    value = ownership[[0, 0, NSNumber(value: y), NSNumber(value: x)]].floatValue
+                } else {
+                    value = ownership[[0, NSNumber(value: y), NSNumber(value: x)]].floatValue
+                }
+                
+                rawOwnership[positionIndex] = value
+            }
+        }
+        
+        return rawOwnership
+    }
+    
+    /// Post-process model outputs using KataGo's postprocessing logic
+    public func postprocess(
+        board: Board,
+        nextPlayer: Stone,
+        modelVersion: Int = 8,
+        postProcessParams: PostProcessParams = .default
+    ) -> PostProcessedModelOutput {
+        // Extract raw values
+        let rawWhiteWinProb = Double(whiteWin)
+        let rawWhiteLossProb = Double(whiteLoss)
+        let rawWhiteNoResultProb = Double(noResult)
+        let rawWhiteScoreMean = Double(whiteScoreMean ?? 0.0)
+        let rawWhiteScoreMeanSq = Double(whiteScoreMeanSq ?? 0.0)
+        let rawWhiteLead = Double(whiteLead ?? 0.0)
+        let rawVarTimeLeft = Double(varTimeLeft ?? 0.0)
+        let rawShorttermWinlossError = Double(shorttermWinlossError ?? 0.0)
+        let rawShorttermScoreError = Double(shorttermScoreError ?? 0.0)
+        
+        // Post-process value outputs
+        let valueResults = postprocessValueOutputs(
+            rawWhiteWinProb: rawWhiteWinProb,
+            rawWhiteLossProb: rawWhiteLossProb,
+            rawWhiteNoResultProb: rawWhiteNoResultProb,
+            rawWhiteScoreMean: rawWhiteScoreMean,
+            rawWhiteScoreMeanSq: rawWhiteScoreMeanSq,
+            rawWhiteLead: rawWhiteLead,
+            rawVarTimeLeft: rawVarTimeLeft,
+            rawShorttermWinlossError: rawShorttermWinlossError,
+            rawShorttermScoreError: rawShorttermScoreError,
+            nextPlayer: nextPlayer,
+            modelVersion: modelVersion,
+            postProcessParams: postProcessParams
+        )
+        
+        // Post-process policy
+        let rawPolicy = extractRawPolicy()
+        let policyProbs = postprocessPolicy(
+            rawPolicy: rawPolicy,
+            board: board,
+            nextPlayer: nextPlayer,
+            postProcessParams: postProcessParams
+        )
+        
+        // Post-process ownership
+        let rawOwnership = extractRawOwnership()
+        let ownershipValues = postprocessOwnership(
+            rawOwnership: rawOwnership,
+            board: board,
+            nextPlayer: nextPlayer,
+            postProcessParams: postProcessParams
+        )
+        
+        return PostProcessedModelOutput(
+            whiteWinProb: valueResults.whiteWinProb,
+            whiteLossProb: valueResults.whiteLossProb,
+            whiteNoResultProb: valueResults.whiteNoResultProb,
+            whiteScoreMean: valueResults.whiteScoreMean,
+            whiteScoreMeanSq: valueResults.whiteScoreMeanSq,
+            whiteLead: valueResults.whiteLead,
+            varTimeLeft: valueResults.varTimeLeft,
+            shorttermWinlossError: valueResults.shorttermWinlossError,
+            shorttermScoreError: valueResults.shorttermScoreError,
+            policyProbs: policyProbs,
+            ownership: ownershipValues
+        )
     }
 }
