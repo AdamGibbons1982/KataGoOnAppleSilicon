@@ -38,7 +38,11 @@ public class KataGoInference {
     }
     
     /// Perform inference on the given board state
-    public func predict(board: BoardState, profile: String) throws -> ModelOutput {
+    /// - Parameters:
+    ///   - board: BoardState with input features
+    ///   - profile: Model profile to use
+    ///   - debugDump: If true, dump inputs and raw outputs to debug files
+    public func predict(board: BoardState, profile: String, debugDump: Bool = false) throws -> ModelOutput {
         guard let model = models[profile] else {
             throw KataGoError.modelNotFound("Model for profile \(profile) not loaded")
         }
@@ -46,6 +50,11 @@ public class KataGoInference {
         let startTime = Date()
         
         do {
+            // Dump inputs before inference
+            if debugDump {
+                DebugDump.dumpRawInputs(spatial: board.spatial, global: board.global)
+            }
+            
             let input = try MLDictionaryFeatureProvider(dictionary: [
                 "input_spatial": board.spatial,
                 "input_global": board.global
@@ -62,6 +71,17 @@ public class KataGoInference {
             // Extract optional misc value arrays
             let miscValueArray = prediction.featureValue(for: "out_miscvalue")?.multiArrayValue
             let moreMiscValueArray = prediction.featureValue(for: "out_moremiscvalue")?.multiArrayValue
+            
+            // Dump raw outputs after inference
+            if debugDump {
+                DebugDump.dumpRawOutputs(
+                    policy: policy,
+                    value: valueArray,
+                    ownership: ownership,
+                    miscValue: miscValueArray,
+                    moreMiscValue: moreMiscValueArray
+                )
+            }
             
             let output = ModelOutput(
                 policy: policy,
@@ -94,6 +114,7 @@ public class KataGoInference {
     ///   - whichSymmetry: Symmetry index (0-7) or 8 for all symmetries
     ///   - policyOptimism: Optional policy optimism value (0.0-1.0), defaults to 0.0
     ///   - useHumanModel: Whether to use human SL model (affects output format)
+    ///   - debugDump: If true, dump inputs, raw outputs, and postprocessed outputs to debug files
     /// - Returns: Formatted string matching KataGo's kata-raw-nn output
     public func rawNN(
         board: Board,
@@ -101,29 +122,39 @@ public class KataGoInference {
         profile: String,
         whichSymmetry: Int = 0,
         policyOptimism: Float? = nil,
-        useHumanModel: Bool = false
+        useHumanModel: Bool = false,
+        debugDump: Bool = false
     ) throws -> String {
         // Get model prediction
-        let output = try predict(board: boardState, profile: profile)
+        let output = try predict(board: boardState, profile: profile, debugDump: debugDump)
         
-        // Extract value outputs
-        let whiteWin = output.whiteWin
-        let whiteLoss = output.whiteLoss
-        let noResult = output.noResult
+        // Determine next player (black moves first, so turnNumber % 2 == 0 means black)
+        let nextPlayer: Stone = board.turnNumber % 2 == 0 ? .black : .white
         
-        // Calculate whiteLead (for regular model)
-        let whiteLead = whiteWin - whiteLoss
+        // Post-process model outputs
+        let postprocessed = output.postprocess(
+            board: board,
+            nextPlayer: nextPlayer,
+            modelVersion: 8, // Models are version 8+
+            postProcessParams: .default
+        )
         
-        // Get additional fields (use defaults if not available)
-        let whiteScoreSelfplay = output.whiteScoreMean ?? 0.0
-        let whiteScoreSelfplaySq = output.whiteScoreMeanSq ?? 0.0
-        let varTimeLeft = output.varTimeLeft ?? 0.0
-        let shorttermWinlossError = output.shorttermWinlossError ?? 0.0
-        let shorttermScoreError = output.shorttermScoreError ?? 0.0
-        
-        // For human model, use different fields
-        let whiteScore = output.whiteScoreMean ?? 0.0
-        let whiteScoreSq = output.whiteScoreMeanSq ?? 0.0
+        // Dump postprocessed outputs
+        if debugDump {
+            DebugDump.dumpPostprocessedOutputs(
+                policyProbs: postprocessed.policyProbs,
+                ownership: postprocessed.ownership,
+                whiteWinProb: postprocessed.whiteWinProb,
+                whiteLossProb: postprocessed.whiteLossProb,
+                whiteNoResultProb: postprocessed.whiteNoResultProb,
+                whiteScoreMean: postprocessed.whiteScoreMean,
+                whiteScoreMeanSq: postprocessed.whiteScoreMeanSq,
+                whiteLead: postprocessed.whiteLead,
+                varTimeLeft: postprocessed.varTimeLeft,
+                shorttermWinlossError: postprocessed.shorttermWinlossError,
+                shorttermScoreError: postprocessed.shorttermScoreError
+            )
+        }
         
         // Format output based on model type
         var result = ""
@@ -131,41 +162,63 @@ public class KataGoInference {
         if useHumanModel {
             // Human model format
             result += "symmetry \(whichSymmetry)\n"
-            result += String(format: "whiteWin %.6f\n", whiteWin)
-            result += String(format: "whiteLoss %.6f\n", whiteLoss)
-            result += String(format: "noResult %.6f\n", noResult)
-            result += String(format: "whiteScore %.3f\n", whiteScore)
-            result += String(format: "whiteScoreSq %.3f\n", whiteScoreSq)
-            result += String(format: "shorttermWinlossError %.3f\n", shorttermWinlossError)
-            result += String(format: "shorttermScoreError %.3f\n", shorttermScoreError)
+            result += String(format: "whiteWin %.6f\n", postprocessed.whiteWinProb)
+            result += String(format: "whiteLoss %.6f\n", postprocessed.whiteLossProb)
+            result += String(format: "noResult %.6f\n", postprocessed.whiteNoResultProb)
+            result += String(format: "whiteScore %.3f\n", postprocessed.whiteScoreMean)
+            result += String(format: "whiteScoreSq %.3f\n", postprocessed.whiteScoreMeanSq)
+            result += String(format: "shorttermWinlossError %.3f\n", postprocessed.shorttermWinlossError)
+            result += String(format: "shorttermScoreError %.3f\n", postprocessed.shorttermScoreError)
         } else {
             // Regular model format
             result += "symmetry \(whichSymmetry)\n"
-            result += String(format: "whiteWin %.6f\n", whiteWin)
-            result += String(format: "whiteLoss %.6f\n", whiteLoss)
-            result += String(format: "noResult %.6f\n", noResult)
-            result += String(format: "whiteLead %.3f\n", whiteLead)
-            result += String(format: "whiteScoreSelfplay %.3f\n", whiteScoreSelfplay)
-            result += String(format: "whiteScoreSelfplaySq %.3f\n", whiteScoreSelfplaySq)
-            result += String(format: "varTimeLeft %.3f\n", varTimeLeft)
-            result += String(format: "shorttermWinlossError %.3f\n", shorttermWinlossError)
-            result += String(format: "shorttermScoreError %.3f\n", shorttermScoreError)
+            result += String(format: "whiteWin %.6f\n", postprocessed.whiteWinProb)
+            result += String(format: "whiteLoss %.6f\n", postprocessed.whiteLossProb)
+            result += String(format: "noResult %.6f\n", postprocessed.whiteNoResultProb)
+            result += String(format: "whiteLead %.3f\n", postprocessed.whiteLead)
+            result += String(format: "whiteScoreSelfplay %.3f\n", postprocessed.whiteScoreMean)
+            result += String(format: "whiteScoreSelfplaySq %.3f\n", postprocessed.whiteScoreMeanSq)
+            result += String(format: "varTimeLeft %.3f\n", postprocessed.varTimeLeft)
+            result += String(format: "shorttermWinlossError %.3f\n", postprocessed.shorttermWinlossError)
+            result += String(format: "shorttermScoreError %.3f\n", postprocessed.shorttermScoreError)
         }
         
-        // Format policy grid (19x19)
+        // Format policy grid (19x19) using postprocessed probabilities
         result += "policy\n"
-        result += formatPolicyGrid(policy: output.policy)
+        result += formatPolicyGridFromPostprocessed(policyProbs: postprocessed.policyProbs)
         
         // Format policy pass
-        let policyPass = extractPolicyPass(policy: output.policy)
+        let policyPass = postprocessed.policyProbs[361] >= 0 ? postprocessed.policyProbs[361] : 0.0
         result += String(format: "policyPass %8.6f \n", policyPass)
         
-        // Format ownership grid (19x19)
+        // Format ownership grid (19x19) using postprocessed values
         result += "whiteOwnership\n"
-        result += formatOwnershipGrid(ownership: output.ownership)
+        result += formatOwnershipGridFromPostprocessed(ownership: postprocessed.ownership)
         
         // Empty line after symmetry block
         result += "\n"
+        
+        return result
+    }
+    
+    /// Format postprocessed policy grid as 19 lines of 19 values each
+    private func formatPolicyGridFromPostprocessed(policyProbs: [Float]) -> String {
+        var result = ""
+        
+        for y in 0..<19 {
+            var lineValues: [String] = []
+            for x in 0..<19 {
+                let positionIndex = y * 19 + x
+                let value = positionIndex < policyProbs.count ? policyProbs[positionIndex] : 0.0
+                
+                if value < 0 {
+                    lineValues.append("    NAN ")
+                } else {
+                    lineValues.append(String(format: "%8.6f ", value))
+                }
+            }
+            result += lineValues.joined(separator: " ") + "\n"
+        }
         
         return result
     }
@@ -246,6 +299,28 @@ public class KataGoInference {
             }
             return 0.0
         }
+    }
+    
+    /// Format postprocessed ownership grid as 19 lines of 19 values each
+    private func formatOwnershipGridFromPostprocessed(ownership: [Float]) -> String {
+        var result = ""
+        
+        for y in 0..<19 {
+            var lineValues: [String] = []
+            for x in 0..<19 {
+                let positionIndex = y * 19 + x
+                let value = positionIndex < ownership.count ? ownership[positionIndex] : 0.0
+                
+                if value.isNaN {
+                    lineValues.append("     NAN ")
+                } else {
+                    lineValues.append(String(format: "%9.7f ", value))
+                }
+            }
+            result += lineValues.joined(separator: " ") + "\n"
+        }
+        
+        return result
     }
     
     /// Format ownership grid as 19 lines of 19 values each

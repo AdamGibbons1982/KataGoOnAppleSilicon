@@ -138,9 +138,14 @@ if [ ! -f "$GTP_CONFIG" ]; then
     exit 1
 fi
 
-# Step 5: Generate reference output for empty board
+# Step 5: Create debug directory and generate reference output for empty board
 echo ""
 echo -e "${GREEN}Generating reference output for empty board (symmetry 0)...${NC}"
+
+# Create debug directory for KataGo Core ML backend dumps
+DEBUG_DIR="$PROJECT_ROOT/.cursor/debug"
+mkdir -p "$DEBUG_DIR"
+echo -e "${GREEN}Debug directory created: $DEBUG_DIR${NC}"
 
 REFERENCE_FILE="$REFERENCE_OUTPUT_DIR/kata_raw_nn_empty_board_symmetry_0.txt"
 
@@ -154,14 +159,16 @@ GTPEOF
 
 # Run KataGo and extract output
 # KataGo GTP format: "= <output>\n\n" for success, "? <error>\n\n" for error
-echo "Running KataGo GTP session..."
+echo "Running KataGo GTP session with debug dumping enabled..."
+echo -e "${YELLOW}Note: KATAGO_DEBUG_DUMP=1 is set to capture Core ML backend inputs/outputs${NC}"
 cd "$PROJECT_ROOT"
 
 # Capture raw output and stderr separately for error checking
 RAW_OUTPUT_FILE="$REFERENCE_OUTPUT_DIR/raw_gtp_output.txt"
 STDERR_FILE="$REFERENCE_OUTPUT_DIR/gtp_stderr.txt"
 
-"$KATAGO_EXE" gtp \
+# Set KATAGO_DEBUG_DUMP=1 to enable debug dumping in coremlbackend.swift
+KATAGO_DEBUG_DUMP=1 "$KATAGO_EXE" gtp \
     -model "$BINARY_MODEL_PATH" \
     -coreml-model "$CORE_ML_MODEL_PATH" \
     -config "$GTP_CONFIG" < "$GTP_INPUT" > "$RAW_OUTPUT_FILE" 2> "$STDERR_FILE"
@@ -210,6 +217,21 @@ if [ -f "$REFERENCE_FILE" ] && [ -s "$REFERENCE_FILE" ]; then
 else
     echo -e "${RED}✗ Failed to generate reference file${NC}"
     exit 1
+fi
+
+# Check if debug dumps were generated
+echo ""
+echo -e "${GREEN}Checking for debug dumps...${NC}"
+if [ -f "$DEBUG_DIR/katago_coreml_inputs_spatial.txt" ]; then
+    echo -e "${GREEN}✓ Debug dumps generated in: $DEBUG_DIR${NC}"
+    echo "  - katago_coreml_inputs_spatial.txt"
+    echo "  - katago_coreml_inputs_global.txt"
+    echo "  - katago_coreml_raw_policy.txt"
+    echo "  - katago_coreml_raw_value.txt"
+    echo "  - katago_coreml_raw_ownership.txt"
+    echo "  - (and other output files)"
+else
+    echo -e "${YELLOW}⚠ No debug dumps found. Make sure KATAGO_DEBUG_DUMP=1 was set correctly.${NC}"
 fi
 
 echo ""

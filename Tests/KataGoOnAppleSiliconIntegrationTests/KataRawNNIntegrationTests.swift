@@ -27,8 +27,8 @@ struct KataRawNNIntegrationTests {
         return try String(contentsOf: fileURL, encoding: .utf8)
     }
     
-    /// Compare Swift output with reference file, allowing for floating point tolerance
-    private func compareOutputs(swift: String, reference: String, tolerance: Float = 0.0001) -> ComparisonResult {
+    /// Compare Swift output with reference file using exact string matching
+    private func compareOutputs(swift: String, reference: String) -> ComparisonResult {
         let swiftLines = swift.components(separatedBy: .newlines)
         let referenceLines = reference.components(separatedBy: .newlines)
         
@@ -40,33 +40,7 @@ struct KataRawNNIntegrationTests {
             let refLine = i < referenceLines.count ? referenceLines[i] : ""
             
             if swiftLine != refLine {
-                // Try to compare as floating point values if both lines contain numbers
-                let swiftFloats = parseFloatLine(swiftLine)
-                let refFloats = parseFloatLine(refLine)
-                
-                if !swiftFloats.isEmpty && !refFloats.isEmpty {
-                    // Compare all float values on the line
-                    if swiftFloats.count == refFloats.count {
-                        var lineMatches = true
-                        var maxDiff: Float = 0.0
-                        for j in 0..<swiftFloats.count {
-                            let diff = abs(swiftFloats[j] - refFloats[j])
-                            maxDiff = max(maxDiff, diff)
-                            if diff > tolerance {
-                                lineMatches = false
-                            }
-                        }
-                        if !lineMatches {
-                            mismatches.append("Line \(i + 1): Max diff=\(maxDiff), Swift=\(swiftLine.prefix(80)), Reference=\(refLine.prefix(80))")
-                        }
-                    } else {
-                        // Different number of values
-                        mismatches.append("Line \(i + 1): Value count mismatch (Swift=\(swiftFloats.count), Ref=\(refFloats.count))")
-                    }
-                } else {
-                    // Exact string comparison for non-numeric lines
-                    mismatches.append("Line \(i + 1): Swift=\(swiftLine), Reference=\(refLine)")
-                }
+                mismatches.append("Line \(i + 1): Swift=\(swiftLine), Reference=\(refLine)")
             }
         }
         
@@ -75,18 +49,6 @@ struct KataRawNNIntegrationTests {
         } else {
             return ComparisonResult(matches: false, mismatches: mismatches)
         }
-    }
-    
-    /// Parse a line that might contain float values (returns all floats found)
-    private func parseFloatLine(_ line: String) -> [Float] {
-        let components = line.split(separator: " ")
-        var floats: [Float] = []
-        for component in components {
-            if let value = Float(component) {
-                floats.append(value)
-            }
-        }
-        return floats
     }
     
     struct ComparisonResult {
@@ -130,11 +92,17 @@ extension KataRawNNIntegrationTests {
             board: board,
             boardState: boardState,
             profile: "AI",
-            whichSymmetry: 0
+            whichSymmetry: 0,
+            debugDump: true
         )
         
-        // Compare outputs with exact matching (tolerance for floating-point values)
-        let result = compareOutputs(swift: swiftOutput, reference: referenceOutput, tolerance: 0.000001)
+        // Print Swift output for debugging
+        print("=== Swift Generated Output ===")
+        print(swiftOutput)
+        print("=== End Swift Output ===")
+        
+        // Compare outputs with exact matching
+        let result = compareOutputs(swift: swiftOutput, reference: referenceOutput)
         
         if !result.matches {
             print("Mismatches found:")
@@ -146,8 +114,8 @@ extension KataRawNNIntegrationTests {
             }
         }
         
-        // Expect exact match (within floating-point tolerance)
-        #expect(result.matches, "Output should match reference exactly (within tolerance)")
+        // Expect exact match
+        #expect(result.matches, "Output should match reference exactly")
     }
     
     @Test func testKataRawNNSymmetry0() async throws {
