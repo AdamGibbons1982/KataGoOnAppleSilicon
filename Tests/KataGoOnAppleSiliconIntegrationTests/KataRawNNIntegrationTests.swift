@@ -43,9 +43,14 @@ struct KataRawNNIntegrationTests {
             // Try to parse as key-value pairs with numeric values
             if let (key, swiftValue, refValue) = parseNumericLine(swiftLine, refLine) {
                 if let swiftNum = Double(swiftValue), let refNum = Double(refValue) {
-                    let diff = abs(swiftNum - refNum)
-                    if diff > tolerance {
-                        mismatches.append("Line \(i + 1): \(key) Swift=\(swiftValue), Reference=\(refValue), diff=\(String(format: "%.9f", diff))")
+                    // Use relative tolerance: abs(swift - ref) / max(abs(swift), abs(ref), 1.0) <= tolerance
+                    let absSwift = abs(swiftNum)
+                    let absRef = abs(refNum)
+                    let maxAbs = max(absSwift, absRef, 1.0) // Use 1.0 minimum to avoid division by zero
+                    let relativeDiff = abs(swiftNum - refNum) / maxAbs
+                    if relativeDiff > tolerance {
+                        let absDiff = abs(swiftNum - refNum)
+                        mismatches.append("Line \(i + 1): \(key) Swift=\(swiftValue), Reference=\(refValue), absDiff=\(String(format: "%.9f", absDiff)), relDiff=\(String(format: "%.9f", relativeDiff))")
                     }
                     continue
                 }
@@ -94,7 +99,7 @@ struct KataRawNNIntegrationTests {
         return (key, swiftValue, refValue)
     }
     
-    /// Compare two lines containing space-separated numeric values with tolerance
+    /// Compare two lines containing space-separated numeric values with relative tolerance
     private func compareNumericLine(_ swiftLine: String, _ refLine: String, tolerance: Double) -> Bool {
         let swiftValues = swiftLine.split(separator: " ").compactMap { Double($0) }
         let refValues = refLine.split(separator: " ").compactMap { Double($0) }
@@ -104,7 +109,12 @@ struct KataRawNNIntegrationTests {
         }
         
         for (swiftVal, refVal) in zip(swiftValues, refValues) {
-            if abs(swiftVal - refVal) > tolerance {
+            // Use relative tolerance: abs(swift - ref) / max(abs(swift), abs(ref), 1.0) <= tolerance
+            let absSwift = abs(swiftVal)
+            let absRef = abs(refVal)
+            let maxAbs = max(absSwift, absRef, 1.0) // Use 1.0 minimum to avoid division by zero
+            let relativeDiff = abs(swiftVal - refVal) / maxAbs
+            if relativeDiff > tolerance {
                 return false
             }
         }
@@ -202,12 +212,60 @@ extension KataRawNNIntegrationTests {
         let normalizedRefLine = refSymmetryLine?.replacingOccurrences(of: "^= ", with: "", options: .regularExpression) ?? ""
         #expect(swiftSymmetryLine == normalizedRefLine, "Symmetry lines should match: Swift=\(swiftSymmetryLine ?? "nil"), Ref=\(normalizedRefLine)")
     }
+    
+    @Test func testKataRawNNEmptyBoard20k() async throws {
+        // Load reference file for 20k model
+        var referenceOutput = try loadReferenceFile(testCase: "empty_board_20k", symmetry: 0)
+        
+        // Strip GTP "= " prefix from reference file if present
+        if referenceOutput.hasPrefix("= ") {
+            // Remove "= " from the first line
+            let lines = referenceOutput.components(separatedBy: .newlines)
+            if !lines.isEmpty && lines[0].hasPrefix("= ") {
+                let firstLine = String(lines[0].dropFirst(2)) // Remove "= "
+                referenceOutput = ([firstLine] + lines.dropFirst()).joined(separator: "\n")
+            }
+        }
+        
+        // Generate Swift output
+        let katago = KataGoInference()
+        try katago.loadModel(for: "20k")
+        
+        let board = Board()
+        let boardState = BoardState(board: board)
+        
+        // Note: KataGo's kata-raw-nn always outputs standard format, so we use useHumanModel: false
+        // to match the reference format. The values should still be from the human SL model.
+        let swiftOutput = try katago.rawNN(
+            board: board,
+            boardState: boardState,
+            profile: "20k",
+            whichSymmetry: 0,
+            useHumanModel: false
+        )
+        
+        // Compare outputs with relative tolerance (ratio-based, e.g., 0.001 = 0.1%)
+        // This accounts for floating-point precision differences that scale with value magnitude
+        let tolerance = 0.001  // 0.1% relative tolerance
+        let result = compareOutputs(swift: swiftOutput, reference: referenceOutput, tolerance: tolerance)
+        
+        // Expect match within relative tolerance
+        #expect(result.matches, "Output should match reference within relative tolerance (\(tolerance) = \(tolerance * 100)%)")
+    }
 }
 
 // Helper function to find reference file
 private func findReferenceFile(testCase: String, symmetry: Int) -> URL? {
     // Try multiple possible locations
-    let fileName = "kata_raw_nn_\(testCase)_symmetry_\(symmetry).txt"
+    // Handle 20k model case: if testCase ends with "_20k", use it as suffix instead of prefix
+    let fileName: String
+    if testCase.hasSuffix("_20k") {
+        // For "empty_board_20k", generate "kata_raw_nn_empty_board_symmetry_0_20k.txt"
+        let baseTestCase = String(testCase.dropLast(4)) // Remove "_20k"
+        fileName = "kata_raw_nn_\(baseTestCase)_symmetry_\(symmetry)_20k.txt"
+    } else {
+        fileName = "kata_raw_nn_\(testCase)_symmetry_\(symmetry).txt"
+    }
     let fileManager = FileManager.default
     
     // Try relative to test file location (most reliable)

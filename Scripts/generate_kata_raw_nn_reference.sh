@@ -4,10 +4,11 @@
 # This script builds KataGo from source, sets up GTP session, and generates reference outputs
 #
 # Usage:
-#   ./generate_kata_raw_nn_reference.sh [--force-rebuild]
+#   ./generate_kata_raw_nn_reference.sh [--force-rebuild] [--model-type AI|20k]
 #
 # Options:
 #   --force-rebuild    Force rebuilding KataGo executable even if it already exists
+#   --model-type       Model type to use: "AI" (default) or "20k" (human SL)
 
 set -e  # Exit on error
 
@@ -19,15 +20,31 @@ NC='\033[0m' # No Color
 
 # Parse command-line arguments
 FORCE_REBUILD=false
-for arg in "$@"; do
-    case $arg in
+MODEL_TYPE="AI"
+while [ $# -gt 0 ]; do
+    case $1 in
         --force-rebuild)
             FORCE_REBUILD=true
             shift
             ;;
+        --model-type)
+            shift
+            if [ $# -eq 0 ]; then
+                echo "Error: --model-type requires a value"
+                echo "Usage: $0 [--force-rebuild] [--model-type AI|20k]"
+                exit 1
+            fi
+            MODEL_TYPE="$1"
+            if [ "$MODEL_TYPE" != "AI" ] && [ "$MODEL_TYPE" != "20k" ]; then
+                echo "Error: --model-type must be 'AI' or '20k'"
+                echo "Usage: $0 [--force-rebuild] [--model-type AI|20k]"
+                exit 1
+            fi
+            shift
+            ;;
         *)
-            echo "Unknown option: $arg"
-            echo "Usage: $0 [--force-rebuild]"
+            echo "Unknown option: $1"
+            echo "Usage: $0 [--force-rebuild] [--model-type AI|20k]"
             exit 1
             ;;
     esac
@@ -37,12 +54,27 @@ done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 KATAGO_ARCHIVE_URL="https://github.com/ChinChangYang/KataGo/archive/metal-coreml-stable.tar.gz"
-BINARY_MODEL_URL="https://media.katagotraining.org/uploaded/networks/models/kata1/kata1-b28c512nbt-adam-s11165M-d5387M.bin.gz"
 KATAGO_DIR="$PROJECT_ROOT/KataGo-metal-coreml-stable"
 BUILD_DIR="$KATAGO_DIR/cpp/build"
 KATAGO_EXE="$BUILD_DIR/katago"
 REFERENCE_OUTPUT_DIR="$PROJECT_ROOT/Tests/KataGoOnAppleSiliconIntegrationTests/ReferenceOutputs"
-CORE_ML_MODEL_PATH="$PROJECT_ROOT/Sources/KataGoOnAppleSilicon/Models/Resources/KataGoModel19x19fp16-adam-s11165M.mlpackage"
+
+# Set model-specific configuration based on MODEL_TYPE
+if [ "$MODEL_TYPE" = "20k" ]; then
+    # Human SL model configuration
+    BINARY_MODEL_URL="https://media.katagotraining.org/uploaded/networks/models_extra/b18c384nbt-humanv0.bin.gz"
+    BINARY_MODEL_NAME="b18c384nbt-humanv0.bin.gz"
+    CORE_ML_MODEL_PATH="$PROJECT_ROOT/Sources/KataGoOnAppleSilicon/Models/Resources/KataGoModel19x19fp16m1.mlpackage"
+    REFERENCE_FILE_SUFFIX="_20k"
+    HUMAN_SL_OVERRIDE="-override-config humanSLProfile=preaz_20k"
+else
+    # AI model configuration (default)
+    BINARY_MODEL_URL="https://media.katagotraining.org/uploaded/networks/models/kata1/kata1-b28c512nbt-adam-s11165M-d5387M.bin.gz"
+    BINARY_MODEL_NAME="kata1-b28c512nbt-adam-s11165M-d5387M.bin.gz"
+    CORE_ML_MODEL_PATH="$PROJECT_ROOT/Sources/KataGoOnAppleSilicon/Models/Resources/KataGoModel19x19fp16-adam-s11165M.mlpackage"
+    REFERENCE_FILE_SUFFIX=""
+    HUMAN_SL_OVERRIDE=""
+fi
 
 # Create reference output directory
 mkdir -p "$REFERENCE_OUTPUT_DIR"
@@ -109,11 +141,11 @@ fi
 # Step 2: Download binary model if needed
 # Ensure build directory exists
 mkdir -p "$BUILD_DIR"
-BINARY_MODEL_PATH="$BUILD_DIR/kata1-b28c512nbt-adam-s11165M-d5387M.bin.gz"
+BINARY_MODEL_PATH="$BUILD_DIR/$BINARY_MODEL_NAME"
 if [ ! -f "$BINARY_MODEL_PATH" ]; then
-    echo "Downloading binary model..."
+    echo "Downloading binary model for $MODEL_TYPE..."
     cd "$BUILD_DIR"
-    wget -q "$BINARY_MODEL_URL" -O kata1-b28c512nbt-adam-s11165M-d5387M.bin.gz
+    wget -q "$BINARY_MODEL_URL" -O "$BINARY_MODEL_NAME"
 fi
 
 if [ ! -f "$BINARY_MODEL_PATH" ]; then
@@ -139,14 +171,14 @@ fi
 
 # Step 5: Create debug directory and generate reference output for empty board
 echo ""
-echo -e "${GREEN}Generating reference output for empty board (symmetry 0)...${NC}"
+echo -e "${GREEN}Generating reference output for empty board (symmetry 0) using $MODEL_TYPE model...${NC}"
 
 # Create debug directory for KataGo Core ML backend dumps
 DEBUG_DIR="$PROJECT_ROOT/.cursor/debug"
 mkdir -p "$DEBUG_DIR"
 echo -e "${GREEN}Debug directory created: $DEBUG_DIR${NC}"
 
-REFERENCE_FILE="$REFERENCE_OUTPUT_DIR/kata_raw_nn_empty_board_symmetry_0.txt"
+REFERENCE_FILE="$REFERENCE_OUTPUT_DIR/kata_raw_nn_empty_board_symmetry_0${REFERENCE_FILE_SUFFIX}.txt"
 
 # Create a temporary file for GTP commands
 GTP_INPUT=$(mktemp)
@@ -167,10 +199,23 @@ RAW_OUTPUT_FILE="$REFERENCE_OUTPUT_DIR/raw_gtp_output.txt"
 STDERR_FILE="$REFERENCE_OUTPUT_DIR/gtp_stderr.txt"
 
 # Set KATAGO_DEBUG_DUMP=1 to enable debug dumping in coremlbackend.swift
-KATAGO_DEBUG_DUMP=1 "$KATAGO_EXE" gtp \
-    -model "$BINARY_MODEL_PATH" \
-    -coreml-model "$CORE_ML_MODEL_PATH" \
-    -config "$GTP_CONFIG" < "$GTP_INPUT" > "$RAW_OUTPUT_FILE" 2> "$STDERR_FILE"
+# Build command with optional human SL override
+if [ -n "$HUMAN_SL_OVERRIDE" ]; then
+    # For human SL model, use -human-model flag to get human format output
+    # We still need a main model, so use the human model for both
+    KATAGO_DEBUG_DUMP=1 "$KATAGO_EXE" gtp \
+        -model "$BINARY_MODEL_PATH" \
+        -human-model "$BINARY_MODEL_PATH" \
+        -coreml-model "$CORE_ML_MODEL_PATH" \
+        -config "$GTP_CONFIG" \
+        $HUMAN_SL_OVERRIDE < "$GTP_INPUT" > "$RAW_OUTPUT_FILE" 2> "$STDERR_FILE"
+else
+    # For AI model, use standard command
+    KATAGO_DEBUG_DUMP=1 "$KATAGO_EXE" gtp \
+        -model "$BINARY_MODEL_PATH" \
+        -coreml-model "$CORE_ML_MODEL_PATH" \
+        -config "$GTP_CONFIG" < "$GTP_INPUT" > "$RAW_OUTPUT_FILE" 2> "$STDERR_FILE"
+fi
 
 # Check stderr for "Dummy neural net backend" error - indicates Core ML backend not enabled
 if [ -f "$STDERR_FILE" ]; then

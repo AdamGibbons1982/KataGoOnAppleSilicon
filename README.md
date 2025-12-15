@@ -55,13 +55,20 @@ swift test --filter KataGoOnAppleSiliconIntegrationTests
 
 # Run specific test
 swift test --filter KataRawNNIntegrationTests.testKataRawNNEmptyBoard
+
+# Run 20k model test
+swift test --filter KataRawNNIntegrationTests.testKataRawNNEmptyBoard20k
 ```
 
 ### Prerequisites
 
 1. **Reference Files**: Generate reference files using the provided script:
    ```bash
+   # Generate reference for AI model (default)
    ./Scripts/generate_kata_raw_nn_reference.sh
+   
+   # Generate reference for 20k human SL model
+   ./Scripts/generate_kata_raw_nn_reference.sh --model-type 20k
    ```
 
 2. **Build Tools**: 
@@ -69,12 +76,16 @@ swift test --filter KataRawNNIntegrationTests.testKataRawNNEmptyBoard
    - Xcode (for building KataGo)
 
 3. **Models**: 
-   - Core ML model must be in `Sources/KataGoOnAppleSilicon/Models/Resources/`
-   - Binary model will be automatically downloaded by the script (~258 MB)
+   - Core ML models must be in `Sources/KataGoOnAppleSilicon/Models/Resources/`
+     - `KataGoModel19x19fp16-adam-s11165M.mlpackage` (AI model)
+     - `KataGoModel19x19fp16m1.mlpackage` (Human SL model)
+   - Binary models will be automatically downloaded by the script:
+     - AI model: `kata1-b28c512nbt-adam-s11165M-d5387M.bin.gz` (~258 MB)
+     - Human SL model: `b18c384nbt-humanv0.bin.gz` (for 20k model)
 
 The reference generation script will:
 - Build KataGo from source (if needed)
-- Download the binary model (if needed)
+- Download the appropriate binary model (if needed)
 - Run KataGo GTP session with `kata-raw-nn` command
 - Extract and save output to reference files in `Tests/KataGoOnAppleSiliconIntegrationTests/ReferenceOutputs/`
 
@@ -86,10 +97,11 @@ This project is a Swift port of KataGo's neural network inference algorithms. Th
 
 - **KataGo**: https://github.com/lightvector/KataGo
 - **Input Features**: Derived from `fillRowV7()` in `cpp/neuralnet/nninputs.cpp`
+- **Input Meta (Human SL)**: Derived from `SGFMetadata::fillMetadataRow()` in `cpp/neuralnet/sgfmetadata.cpp`
 - **Post-Processing**: Derived from `nneval.cpp` (value, policy, and ownership post-processing)
 - **Board Logic**: Ported from KataGo's board implementation
 
-The Swift implementation maintains compatibility with KataGo's neural network models and produces identical output for the `kata-raw-nn` command.
+The Swift implementation maintains compatibility with KataGo's neural network models and produces identical output for the `kata-raw-nn` command, supporting both AI models and human SL models (20k profile).
 
 ## License
 

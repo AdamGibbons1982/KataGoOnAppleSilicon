@@ -41,7 +41,8 @@ public class KataGoInference {
     /// - Parameters:
     ///   - board: BoardState with input features
     ///   - profile: Model profile to use
-    public func predict(board: BoardState, profile: String) throws -> ModelOutput {
+    ///   - nextPlayer: The player to move next (required for human SL models, defaults to .black)
+    public func predict(board: BoardState, profile: String, nextPlayer: Stone = .black) throws -> ModelOutput {
         guard let model = models[profile] else {
             throw KataGoError.modelNotFound("Model for profile \(profile) not loaded")
         }
@@ -49,10 +50,42 @@ public class KataGoInference {
         let startTime = Date()
         
         do {
-            let input = try MLDictionaryFeatureProvider(dictionary: [
+            // Check if model requires input_meta (human SL models)
+            let modelDescription = (model as? MLModel)?.modelDescription
+            let requiresInputMeta = modelDescription?.inputDescriptionsByName["input_meta"] != nil
+            
+            var inputDict: [String: Any] = [
                 "input_spatial": board.spatial,
                 "input_global": board.global
-            ])
+            ]
+            
+            // Add input_meta for human SL models (shape: [1, 192])
+            if requiresInputMeta {
+                // Generate SGFMetadata from profile name
+                let profileName: String
+                switch profile {
+                case "20k":
+                    profileName = "preaz_20k"
+                case "9d":
+                    profileName = "preaz_9d"
+                default:
+                    // Default to preaz_20k for human SL models
+                    profileName = "preaz_20k"
+                }
+                
+                let sgfMeta = SGFMetadata.getProfile(profileName)
+                let metadataRow = SGFMetadata.fillMetadataRow(sgfMeta, nextPlayer: nextPlayer, boardArea: 361) // 19x19 = 361
+                
+                // Convert to MLMultiArray
+                let inputMetaShape: [NSNumber] = [1, 192]
+                let inputMeta = try MLMultiArray(shape: inputMetaShape, dataType: .float16)
+                for i in 0..<192 {
+                    inputMeta[i] = NSNumber(value: metadataRow[i])
+                }
+                inputDict["input_meta"] = inputMeta
+            }
+            
+            let input = try MLDictionaryFeatureProvider(dictionary: inputDict)
             let prediction = try model.prediction(from: input)
             
             // Extract outputs - model uses output_policy, out_value, out_ownership
@@ -106,11 +139,11 @@ public class KataGoInference {
         policyOptimism: Float? = nil,
         useHumanModel: Bool = false
     ) throws -> String {
-        // Get model prediction
-        let output = try predict(board: boardState, profile: profile)
-        
         // Determine next player (black moves first, so turnNumber % 2 == 0 means black)
         let nextPlayer: Stone = board.turnNumber % 2 == 0 ? .black : .white
+        
+        // Get model prediction
+        let output = try predict(board: boardState, profile: profile, nextPlayer: nextPlayer)
         
         // Post-process model outputs
         // Use modelVersion 15 and parameters from actual model description

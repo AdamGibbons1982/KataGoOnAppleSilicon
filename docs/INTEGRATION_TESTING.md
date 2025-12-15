@@ -31,10 +31,14 @@ The integration testing framework compares the Swift `rawNN()` implementation ou
    - The script will automatically build it if not found
    - Or use `--force-rebuild` to rebuild from source
 
-2. **Binary Model**: `kata1-b28c512nbt-adam-s11165M-d5387M.bin`
-   - Automatically downloaded by the script if not present (~258 MB)
+2. **Binary Models**: 
+   - AI model: `kata1-b28c512nbt-adam-s11165M-d5387M.bin.gz` (~258 MB)
+   - Human SL model: `b18c384nbt-humanv0.bin.gz` (for 20k model)
+   - Automatically downloaded by the script if not present
 
-3. **Core ML Model**: `KataGoModel19x19fp16-adam-s11165M.mlpackage`
+3. **Core ML Models**: 
+   - `KataGoModel19x19fp16-adam-s11165M.mlpackage` (AI model)
+   - `KataGoModel19x19fp16m1.mlpackage` (Human SL model)
    - Must be available in `Sources/KataGoOnAppleSilicon/Models/Resources/`
    - Download from [releases](https://github.com/ChinChangYang/KataGo/releases/tag/v1.16.4-coreml1)
 
@@ -54,11 +58,17 @@ Reference files are generated using the `generate_kata_raw_nn_reference.sh` scri
 ### Generating Reference Files
 
 ```bash
-# Generate reference file for empty board (symmetry 0)
+# Generate reference file for AI model (empty board, symmetry 0)
 ./Scripts/generate_kata_raw_nn_reference.sh
+
+# Generate reference file for 20k human SL model
+./Scripts/generate_kata_raw_nn_reference.sh --model-type 20k
 
 # Force rebuild KataGo before generating reference
 ./Scripts/generate_kata_raw_nn_reference.sh --force-rebuild
+
+# Generate 20k reference with force rebuild
+./Scripts/generate_kata_raw_nn_reference.sh --model-type 20k --force-rebuild
 ```
 
 ### Reference File Location
@@ -68,10 +78,9 @@ Reference files are stored in:
 Tests/KataGoOnAppleSiliconIntegrationTests/ReferenceOutputs/
 ```
 
-The generated file for empty board is:
-```
-kata_raw_nn_empty_board_symmetry_0.txt
-```
+Generated files:
+- AI model: `kata_raw_nn_empty_board_symmetry_0.txt`
+- 20k model: `kata_raw_nn_empty_board_symmetry_0_20k.txt`
 
 ### Reference File Format
 
@@ -107,11 +116,14 @@ swift test --filter KataGoOnAppleSiliconIntegrationTests
 ### Running Specific Test
 
 ```bash
-# Test empty board
+# Test empty board (AI model)
 swift test --filter KataRawNNIntegrationTests.testKataRawNNEmptyBoard
 
-# Test symmetry 0
+# Test symmetry 0 (AI model)
 swift test --filter KataRawNNIntegrationTests.testKataRawNNSymmetry0
+
+# Test empty board with 20k human SL model
+swift test --filter KataRawNNIntegrationTests.testKataRawNNEmptyBoard20k
 ```
 
 ## Test Structure
@@ -119,8 +131,9 @@ swift test --filter KataRawNNIntegrationTests.testKataRawNNSymmetry0
 ### Test Files
 
 - **`KataRawNNIntegrationTests.swift`**: Main integration test suite
-  - `testKataRawNNEmptyBoard()`: Compares empty board output
-  - `testKataRawNNSymmetry0()`: Verifies symmetry 0 output format
+  - `testKataRawNNEmptyBoard()`: Compares empty board output (AI model)
+  - `testKataRawNNSymmetry0()`: Verifies symmetry 0 output format (AI model)
+  - `testKataRawNNEmptyBoard20k()`: Compares empty board output (20k human SL model)
 
 ### Test Workflow
 
@@ -131,11 +144,19 @@ swift test --filter KataRawNNIntegrationTests.testKataRawNNSymmetry0
 
 ### Comparison Strategy
 
-The tests use a tolerance-based comparison for floating-point values:
+The tests use a relative tolerance-based comparison for floating-point values:
 
 - **Exact Match**: For non-numeric lines (headers, labels)
-- **Tolerance Match**: For floating-point values (default tolerance: 0.0001)
+- **Relative Tolerance Match**: For floating-point values using ratio-based comparison
+  - Formula: `abs(swift - ref) / max(abs(swift), abs(ref), 1.0) <= tolerance`
+  - Default tolerance: 0.001 (0.1% relative difference)
+  - This scales with value magnitude (e.g., 0.04 difference in 4578 is ~0.00087%)
 - **Structure Verification**: Ensures both outputs have the same structure (policy grid, ownership grid, etc.)
+
+**Why Relative Tolerance?**
+- Values span different scales (probabilities ~0.5, scores ~2-3, squared scores ~4500+)
+- Absolute tolerance would be too strict for large values or too loose for small values
+- Relative tolerance ensures consistent precision across all value ranges
 
 ## Understanding Test Results
 
@@ -212,10 +233,9 @@ This indicates:
 
 **Solution**:
 1. **Core ML Model**: Download from [releases](https://github.com/ChinChangYang/KataGo/releases/tag/v1.16.4-coreml1) and place in `Sources/KataGoOnAppleSilicon/Models/Resources/`
-2. **Binary Model**: The script will automatically download it, or manually download from:
-   ```
-   https://media.katagotraining.org/uploaded/networks/models/kata1/kata1-b28c512nbt-adam-s11165M-d5387M.bin.gz
-   ```
+2. **Binary Models**: The script will automatically download them, or manually download from:
+   - AI model: `https://media.katagotraining.org/uploaded/networks/models/kata1/kata1-b28c512nbt-adam-s11165M-d5387M.bin.gz`
+   - Human SL model: `https://media.katagotraining.org/uploaded/networks/models_extra/b18c384nbt-humanv0.bin.gz`
 
 ### Issue: Test Output Mismatches
 
@@ -237,12 +257,41 @@ This indicates:
 2. Check Swift implementation formatting in `KataGoInference.swift` `rawNN()` method
 3. Regenerate reference file if needed
 
+## Human SL Model Support
+
+The integration tests support both AI models and human SL models (20k profile). Human SL models require additional `input_meta` encoding:
+
+### Input Meta Encoding
+
+Human SL models require a 192-element `input_meta` array that encodes:
+- Player ranks and human status
+- Game metadata (rated/unrated, time control, date, source)
+- The encoding follows KataGo's `SGFMetadata::fillMetadataRow()` implementation
+
+The Swift implementation includes:
+- `SGFMetadata` struct matching KataGo's C++ structure
+- `SGFMetadata.getProfile()` to parse profile names (e.g., "preaz_20k")
+- `SGFMetadata.fillMetadataRow()` to generate the 192-element array
+
+### 20k Model Test
+
+The `testKataRawNNEmptyBoard20k()` test:
+- Loads the 20k human SL model
+- Generates `input_meta` with profile "preaz_20k"
+- Compares output against reference generated with `--model-type 20k`
+
 ## Adding New Test Cases
 
 To add a new test case:
 
 1. **Generate Reference File**:
    ```bash
+   # For AI model
+   ./Scripts/generate_kata_raw_nn_reference.sh
+   
+   # For 20k model
+   ./Scripts/generate_kata_raw_nn_reference.sh --model-type 20k
+   
    # Modify the script to generate reference for your test case
    # Or manually run KataGo GTP and save output
    ```
@@ -266,7 +315,8 @@ To add a new test case:
            whichSymmetry: 0
        )
        
-       let result = compareOutputs(swift: swiftOutput, reference: referenceOutput)
+       let tolerance = 0.001  // 0.1% relative tolerance
+       let result = compareOutputs(swift: swiftOutput, reference: referenceOutput, tolerance: tolerance)
        #expect(result.matches)
    }
    ```
@@ -274,6 +324,7 @@ To add a new test case:
 3. **Update Reference Generation Script** (if needed):
    - Add new test case to the script
    - Generate reference file with appropriate naming
+   - Support `--model-type` if testing human SL models
 
 ## Best Practices
 
