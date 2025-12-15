@@ -127,6 +127,21 @@ public struct BoardState {
     /// - Plane 13: 5 moves ago (by opponent)
     /// Pass moves are handled via global features 0-4 instead of spatial planes
     private static func fillPlanes9To13History(spatial: MLMultiArray, global: MLMultiArray, board: Board, nextPlayer: Stone) {
+        // Explicitly zero out planes 9-13 first to ensure clean state
+        // This is defensive programming to handle cases where previous state might affect results
+        for plane in 9...13 {
+            for y in 0..<19 {
+                for x in 0..<19 {
+                    spatial[[0, NSNumber(value: plane), NSNumber(value: y), NSNumber(value: x)]] = 0.0
+                }
+            }
+        }
+        
+        // Also zero out global features 0-4 (pass history) to ensure clean state
+        for i in 0..<5 {
+            global[i] = 0.0
+        }
+        
         let moveHistory = board.moveHistory
         let moveHistoryLen = moveHistory.count
         
@@ -200,6 +215,16 @@ public struct BoardState {
     ///   - board: Current board state
     ///   - nextPlayer: The player to move next (determines perspective)
     private static func fillPlanes14To17Ladders(spatial: MLMultiArray, board: Board, nextPlayer: Stone) {
+        // Explicitly zero out planes 14-17 first to ensure clean state
+        // This is defensive programming to handle cases where previous state might affect results
+        for plane in 14...17 {
+            for y in 0..<19 {
+                for x in 0..<19 {
+                    spatial[[0, NSNumber(value: plane), NSNumber(value: y), NSNumber(value: x)]] = 0.0
+                }
+            }
+        }
+        
         let opp: Stone = (nextPlayer == .black) ? .white : .black
         let numTurnsOfHistoryIncluded = 2 // For Chinese rules, use 2 turns of history
         
@@ -250,6 +275,16 @@ public struct BoardState {
     /// - Plane 19: 1.0 where area is owned by the opponent
     /// - Both planes are 0.0 for neutral/unowned territory
     private static func fillPlanes18And19Area(spatial: MLMultiArray, board: Board, nextPlayer: Stone) {
+        // Explicitly zero out planes 18-19 first to ensure clean state
+        // This is defensive programming to handle cases where previous state might affect results
+        for plane in 18...19 {
+            for y in 0..<19 {
+                for x in 0..<19 {
+                    spatial[[0, NSNumber(value: plane), NSNumber(value: y), NSNumber(value: x)]] = 0.0
+                }
+            }
+        }
+        
         let area = board.calculateArea()
         let oppStone: Stone = (nextPlayer == .black) ? .white : .black
         
@@ -583,13 +618,70 @@ public struct BoardState {
 
 /// Represents the model output
 public struct ModelOutput {
-    public let policy: MLMultiArray  // [1, 19, 19]
-    public let value: Float           // scalar
-    public let ownership: MLMultiArray  // [1, 19, 19]
+    public let policy: MLMultiArray  // [1, 6, 362] - 6 channels, 362 positions (361 board + 1 pass)
+    public let ownership: MLMultiArray  // [1, 19, 19] or [1, 1, 19, 19]
     
-    public init(policy: MLMultiArray, value: Float, ownership: MLMultiArray) {
+    // Full value array [1, 3]: [whiteWin, whiteLoss, noResult]
+    public let valueArray: MLMultiArray
+    
+    // Misc value arrays for additional outputs
+    public let miscValueArray: MLMultiArray?  // [1, 10] - misc value outputs
+    public let moreMiscValueArray: MLMultiArray?  // [1, 8] - more misc value outputs
+    
+    public init(
+        policy: MLMultiArray,
+        ownership: MLMultiArray,
+        valueArray: MLMultiArray,
+        miscValueArray: MLMultiArray? = nil,
+        moreMiscValueArray: MLMultiArray? = nil
+    ) {
         self.policy = policy
-        self.value = value
         self.ownership = ownership
+        self.valueArray = valueArray
+        self.miscValueArray = miscValueArray
+        self.moreMiscValueArray = moreMiscValueArray
+    }
+    
+    /// Extract whiteWin, whiteLoss, noResult from value array
+    public var whiteWin: Float {
+        return valueArray.count > 0 ? valueArray[0].floatValue : 0.0
+    }
+    
+    public var whiteLoss: Float {
+        return valueArray.count > 1 ? valueArray[1].floatValue : 0.0
+    }
+    
+    public var noResult: Float {
+        return valueArray.count > 2 ? valueArray[2].floatValue : 0.0
+    }
+    
+    /// Extract whiteScoreMean from miscValueArray[0]
+    public var whiteScoreMean: Float? {
+        guard let array = miscValueArray, array.count > 0 else { return nil }
+        return array[0].floatValue
+    }
+    
+    /// Extract whiteScoreMeanSq from miscValueArray[1]
+    public var whiteScoreMeanSq: Float? {
+        guard let array = miscValueArray, array.count > 1 else { return nil }
+        return array[1].floatValue
+    }
+    
+    /// Extract varTimeLeft from miscValueArray[3]
+    public var varTimeLeft: Float? {
+        guard let array = miscValueArray, array.count > 3 else { return nil }
+        return array[3].floatValue
+    }
+    
+    /// Extract shorttermWinlossError from moreMiscValueArray[0]
+    public var shorttermWinlossError: Float? {
+        guard let array = moreMiscValueArray, array.count > 0 else { return nil }
+        return array[0].floatValue
+    }
+    
+    /// Extract shorttermScoreError from moreMiscValueArray[1]
+    public var shorttermScoreError: Float? {
+        guard let array = moreMiscValueArray, array.count > 1 else { return nil }
+        return array[1].floatValue
     }
 }

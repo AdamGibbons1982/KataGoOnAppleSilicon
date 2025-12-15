@@ -94,13 +94,16 @@ public class GTPHandler {
     }
     
     private func selectMove(from policy: MLMultiArray) -> String {
-        // Policy is [1, 19, 19], find max in [0,:,:]
+        // Policy shape is [1, 6, 362] - access board positions as [0, 0, y*19+x]
+        // For 19x19 board: position index = y * 19 + x (0-360), channel 0 is main policy
         var maxProb: Float = 0
         var maxY = 0
         var maxX = 0
         for y in 0..<19 {
             for x in 0..<19 {
-                let prob = Float(policy[[0, NSNumber(value: y), NSNumber(value: x), 0]].doubleValue)
+                // Access policy at position index = y * 19 + x, channel 0
+                let positionIndex = y * 19 + x
+                let prob = Float(policy[[0, 0, NSNumber(value: positionIndex)]].doubleValue)
                 if prob > maxProb {
                     maxProb = prob
                     maxY = y

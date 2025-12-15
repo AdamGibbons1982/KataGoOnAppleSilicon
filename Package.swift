@@ -24,5 +24,9 @@ let package = Package(
             name: "KataGoOnAppleSiliconTests",
             dependencies: ["KataGoOnAppleSilicon"]
         ),
+        .testTarget(
+            name: "KataGoOnAppleSiliconIntegrationTests",
+            dependencies: ["KataGoOnAppleSilicon"]
+        ),
     ]
 )

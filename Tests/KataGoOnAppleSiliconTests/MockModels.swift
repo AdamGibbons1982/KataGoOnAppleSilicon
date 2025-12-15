@@ -36,14 +36,17 @@ class MockModelWithValidOutputs: ModelProtocol {
     }
     
     func prediction(from input: MLFeatureProvider) throws -> MLFeatureProvider {
-        // Create policy array [1, 19, 19, 1] with a peak at target position
-        let policyShape: [NSNumber] = [1, 19, 19, 1]
+        // Create policy array [1, 6, 362] with a peak at target position
+        // Shape matches actual model output: 6 channels, 362 positions (361 board + 1 pass)
+        let policyShape: [NSNumber] = [1, 6, 362]
         let policy = try! MLMultiArray(shape: policyShape, dataType: .float32)
         for i in 0..<policy.count {
             policy[i] = 0.0
         }
         // Set a high probability at target position
-        policy[[0, NSNumber(value: targetY), NSNumber(value: targetX), 0]] = 1.0
+        // Access pattern: [batch, channel, positionIndex] where positionIndex = y * 19 + x
+        let positionIndex = targetY * 19 + targetX
+        policy[[0, 0, NSNumber(value: positionIndex)]] = 1.0
         
         // Create value array [1, 3]
         let valueShape: [NSNumber] = [1, 3]

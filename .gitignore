@@ -12,3 +12,6 @@ merged.profdata
 
 # Large model files (download separately from releases)
 Sources/KataGoOnAppleSilicon/Models/Resources/*.mlpackage/
+
+# Reference output files (generated artifacts)
+Tests/KataGoOnAppleSiliconIntegrationTests/ReferenceOutputs/*.txt
