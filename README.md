@@ -43,6 +43,43 @@ swift build
 swift test
 ```
 
+## Integration Testing
+
+The project includes integration tests that validate the Swift `kata-raw-nn` implementation against KataGo's reference output. These tests ensure the Swift implementation produces output that exactly matches KataGo's C++ implementation.
+
+### Quick Start
+
+```bash
+# Run all integration tests
+swift test --filter KataGoOnAppleSiliconIntegrationTests
+
+# Run specific test
+swift test --filter KataRawNNIntegrationTests.testKataRawNNEmptyBoard
+```
+
+### Prerequisites
+
+1. **Reference Files**: Generate reference files using the provided script:
+   ```bash
+   ./Scripts/generate_kata_raw_nn_reference.sh
+   ```
+
+2. **Build Tools**: 
+   - Ninja: `brew install ninja`
+   - Xcode (for building KataGo)
+
+3. **Models**: 
+   - Core ML model must be in `Sources/KataGoOnAppleSilicon/Models/Resources/`
+   - Binary model will be automatically downloaded by the script (~258 MB)
+
+The reference generation script will:
+- Build KataGo from source (if needed)
+- Download the binary model (if needed)
+- Run KataGo GTP session with `kata-raw-nn` command
+- Extract and save output to reference files in `Tests/KataGoOnAppleSiliconIntegrationTests/ReferenceOutputs/`
+
+For detailed information, see [Integration Testing Guide](docs/INTEGRATION_TESTING.md).
+
 ## License
 
 MIT License - see [LICENSE](LICENSE) file for details.
