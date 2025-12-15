@@ -15,3 +15,6 @@ Sources/KataGoOnAppleSilicon/Models/Resources/*.mlpackage/
 
 # Reference output files (generated artifacts)
 Tests/KataGoOnAppleSiliconIntegrationTests/ReferenceOutputs/*.txt
+
+# KataGo submodule/dependency
+KataGo-metal-coreml-stable/
