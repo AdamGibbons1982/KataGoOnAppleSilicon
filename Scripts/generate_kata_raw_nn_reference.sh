@@ -107,14 +107,13 @@ else
 fi
 
 # Step 2: Download binary model if needed
-BINARY_MODEL_PATH="$PROJECT_ROOT/kata1-b28c512nbt-adam-s11165M-d5387M.bin"
+# Ensure build directory exists
+mkdir -p "$BUILD_DIR"
+BINARY_MODEL_PATH="$BUILD_DIR/kata1-b28c512nbt-adam-s11165M-d5387M.bin.gz"
 if [ ! -f "$BINARY_MODEL_PATH" ]; then
     echo "Downloading binary model..."
-    cd "$PROJECT_ROOT"
-    if [ ! -f "kata1-b28c512nbt-adam-s11165M-d5387M.bin.gz" ]; then
-        wget -q "$BINARY_MODEL_URL" -O kata1-b28c512nbt-adam-s11165M-d5387M.bin.gz
-    fi
-    gunzip -f kata1-b28c512nbt-adam-s11165M-d5387M.bin.gz
+    cd "$BUILD_DIR"
+    wget -q "$BINARY_MODEL_URL" -O kata1-b28c512nbt-adam-s11165M-d5387M.bin.gz
 fi
 
 if [ ! -f "$BINARY_MODEL_PATH" ]; then
