@@ -698,107 +698,77 @@ public struct ModelOutput {
         self.moreMiscValueArray = moreMiscValueArray
     }
     
+    // MARK: - Constants
+    
+    private static let valueArraySize = 3
+    private static let miscValueArraySize = 10
+    private static let moreMiscValueArraySize = 8
+    
+    // MARK: - Helper Functions
+    
+    /// Extract value from valueArray (always shape [1, 3])
+    private func getValueArrayValue(at index: Int) -> Float {
+        let value = valueArray[[0, NSNumber(value: index)]].doubleValue
+        return value.isNaN ? valueArray[[0, NSNumber(value: index)]].floatValue : Float(value)
+    }
+    
+    /// Extract value from optional 2D array (miscValueArray [1, 10] or moreMiscValueArray [1, 8])
+    private func getOptionalArrayValue(_ array: MLMultiArray?, at index: Int) -> Float? {
+        guard let array = array else { return nil }
+        return array[[0, NSNumber(value: index)]].floatValue
+    }
+    
+    // MARK: - Value Array Properties
+    
     /// Extract whiteWin, whiteLoss, noResult from value array
     public var whiteWin: Float {
-        // Use multi-dimensional indexing for shape [1, 3]
-        // Try doubleValue first (works better for float16), fallback to floatValue
-        if valueArray.shape.count >= 2 {
-            let value = valueArray[[0, 0]].doubleValue
-            return value.isNaN ? valueArray[[0, 0]].floatValue : Float(value)
-        } else {
-            let value = valueArray.count > 0 ? valueArray[0].doubleValue : 0.0
-            return value.isNaN ? (valueArray.count > 0 ? valueArray[0].floatValue : 0.0) : Float(value)
-        }
+        getValueArrayValue(at: 0)
     }
     
     public var whiteLoss: Float {
-        // Use multi-dimensional indexing for shape [1, 3]
-        if valueArray.shape.count >= 2 && valueArray.shape[1].intValue > 1 {
-            let value = valueArray[[0, 1]].doubleValue
-            return value.isNaN ? valueArray[[0, 1]].floatValue : Float(value)
-        } else {
-            let value = valueArray.count > 1 ? valueArray[1].doubleValue : 0.0
-            return value.isNaN ? (valueArray.count > 1 ? valueArray[1].floatValue : 0.0) : Float(value)
-        }
+        getValueArrayValue(at: 1)
     }
     
     public var noResult: Float {
-        // Use multi-dimensional indexing for shape [1, 3]
-        if valueArray.shape.count >= 2 && valueArray.shape[1].intValue > 2 {
-            let value = valueArray[[0, 2]].doubleValue
-            return value.isNaN ? valueArray[[0, 2]].floatValue : Float(value)
-        } else {
-            let value = valueArray.count > 2 ? valueArray[2].doubleValue : 0.0
-            return value.isNaN ? (valueArray.count > 2 ? valueArray[2].floatValue : 0.0) : Float(value)
-        }
+        getValueArrayValue(at: 2)
     }
+    
+    // MARK: - Misc Value Array Properties
     
     /// Extract whiteScoreMean from miscValueArray[0]
     public var whiteScoreMean: Float? {
-        guard let array = miscValueArray, array.count > 0 else { return nil }
-        // Use multi-dimensional indexing for shape [1, N]
-        if array.shape.count >= 2 {
-            return array[[0, 0]].floatValue
-        } else {
-            return array[0].floatValue
-        }
+        getOptionalArrayValue(miscValueArray, at: 0)
     }
     
     /// Extract whiteScoreMeanSq from miscValueArray[1]
     public var whiteScoreMeanSq: Float? {
-        guard let array = miscValueArray, array.count > 1 else { return nil }
-        // Use multi-dimensional indexing for shape [1, N]
-        if array.shape.count >= 2 && array.shape[1].intValue > 1 {
-            return array[[0, 1]].floatValue
-        } else {
-            return array[1].floatValue
-        }
-    }
-    
-    /// Extract varTimeLeft from miscValueArray[3]
-    public var varTimeLeft: Float? {
-        guard let array = miscValueArray, array.count > 3 else { return nil }
-        // Use multi-dimensional indexing for shape [1, N]
-        if array.shape.count >= 2 && array.shape[1].intValue > 3 {
-            return array[[0, 3]].floatValue
-        } else {
-            return array[3].floatValue
-        }
-    }
-    
-    /// Extract shorttermWinlossError - use moreMiscValueArray[0] (matches C++ coremlbackend.cpp)
-    public var shorttermWinlossError: Float? {
-        // C++ backend uses moreMiscValuesOutputBuf[0], not miscValuesOutputBuf[4]
-        // See coremlbackend.cpp line 164-165
-        guard let array = moreMiscValueArray, array.count > 0 else { return nil }
-        if array.shape.count >= 2 {
-            return array[[0, 0]].floatValue
-        } else {
-            return array[0].floatValue
-        }
-    }
-    
-    /// Extract shorttermScoreError - use moreMiscValueArray[1] (matches C++ coremlbackend.cpp)
-    public var shorttermScoreError: Float? {
-        // C++ backend uses moreMiscValuesOutputBuf[1], not miscValuesOutputBuf[5]
-        // See coremlbackend.cpp line 166
-        guard let array = moreMiscValueArray, array.count > 1 else { return nil }
-        if array.shape.count >= 2 && array.shape[1].intValue > 1 {
-            return array[[0, 1]].floatValue
-        } else {
-            return array[1].floatValue
-        }
+        getOptionalArrayValue(miscValueArray, at: 1)
     }
     
     /// Extract whiteLead from miscValueArray[2]
     public var whiteLead: Float? {
-        guard let array = miscValueArray, array.count > 2 else { return nil }
-        // Use multi-dimensional indexing for shape [1, N]
-        if array.shape.count >= 2 && array.shape[1].intValue > 2 {
-            return array[[0, 2]].floatValue
-        } else {
-            return array[2].floatValue
-        }
+        getOptionalArrayValue(miscValueArray, at: 2)
+    }
+    
+    /// Extract varTimeLeft from miscValueArray[3]
+    public var varTimeLeft: Float? {
+        getOptionalArrayValue(miscValueArray, at: 3)
+    }
+    
+    // MARK: - More Misc Value Array Properties
+    
+    /// Extract shorttermWinlossError - use moreMiscValueArray[0] (matches C++ coremlbackend.cpp)
+    /// C++ backend uses moreMiscValuesOutputBuf[0], not miscValuesOutputBuf[4]
+    /// See coremlbackend.cpp line 164-165
+    public var shorttermWinlossError: Float? {
+        getOptionalArrayValue(moreMiscValueArray, at: 0)
+    }
+    
+    /// Extract shorttermScoreError - use moreMiscValueArray[1] (matches C++ coremlbackend.cpp)
+    /// C++ backend uses moreMiscValuesOutputBuf[1], not miscValuesOutputBuf[5]
+    /// See coremlbackend.cpp line 166
+    public var shorttermScoreError: Float? {
+        getOptionalArrayValue(moreMiscValueArray, at: 1)
     }
     
     /// Extract raw policy values as a flat array [362] (361 board positions + 1 pass)
