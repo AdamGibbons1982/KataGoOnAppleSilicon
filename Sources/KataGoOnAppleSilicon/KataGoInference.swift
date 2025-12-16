@@ -16,6 +16,31 @@ public class KataGoInference {
     
     public init() {}
     
+    /// Check if a profile string represents a valid human SL profile (1d-9d or 1k-20k)
+    private func isHumanSLProfile(_ profile: String) -> Bool {
+        // Match pattern: number followed by 'd' or 'k'
+        guard profile.range(of: #"^(\d+)([kd])$"#, options: .regularExpression) != nil else {
+            return false
+        }
+        
+        // Extract the number and suffix
+        guard let suffix = profile.last, (suffix == "d" || suffix == "k") else {
+            return false
+        }
+        
+        let numberPart = String(profile.dropLast())
+        guard let number = Int(numberPart) else {
+            return false
+        }
+        
+        // Validate ranges: 1-9 for dan (d), 1-20 for kyu (k)
+        if suffix == "d" {
+            return number >= 1 && number <= 9
+        } else { // suffix == "k"
+            return number >= 1 && number <= 20
+        }
+    }
+    
     /// Inject a model for testing purposes
     internal func setModel(_ model: any ModelProtocol, for profile: String) {
         models[profile] = model
@@ -24,12 +49,11 @@ public class KataGoInference {
     /// Load a model for a specific profile
     public func loadModel(for profile: String) throws {
         let modelName: String
-        switch profile {
-        case "AI":
+        if profile == "AI" {
             modelName = "KataGoModel19x19fp16-adam-s11165M"  // Strongest 28b model
-        case "9d", "20k":
+        } else if isHumanSLProfile(profile) {
             modelName = "KataGoModel19x19fp16m1"  // Human SL model
-        default:
+        } else {
             throw KataGoError.unsupportedProfile(profile)
         }
         
@@ -63,13 +87,11 @@ public class KataGoInference {
             if requiresInputMeta {
                 // Generate SGFMetadata from profile name
                 let profileName: String
-                switch profile {
-                case "20k":
-                    profileName = "preaz_20k"
-                case "9d":
-                    profileName = "preaz_9d"
-                default:
-                    // Default to preaz_20k for human SL models
+                if isHumanSLProfile(profile) {
+                    // Construct profile name as "preaz_" + profile (e.g., "preaz_1k", "preaz_9d")
+                    profileName = "preaz_" + profile
+                } else {
+                    // Default to preaz_20k for invalid profiles (backward compatibility)
                     profileName = "preaz_20k"
                 }
                 
