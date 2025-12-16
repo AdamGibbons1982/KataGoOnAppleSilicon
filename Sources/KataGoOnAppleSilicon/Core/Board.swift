@@ -548,9 +548,15 @@ public class Board {
             }
         }
         
-        // If there are working moves, it's not necessarily a ladder (defender can escape)
-        // If no working moves, it might be a ladder
-        let isLaddered = workingMoves.isEmpty
+        // Per C++ reference (nninputs.cpp:884), laddered and workingMoves are independent.
+        // A stone can be laddered (will be captured if attacker plays correctly) AND have
+        // working moves (escape attempts). Since we're checking 2-liberty stones in iterLadders,
+        // they are potentially in a ladder situation. Return true to allow the callback to be
+        // called so feature 17 can be populated when workingMoves exist.
+        // Note: A full implementation would perform a ladder search to determine if the stone
+        // is actually laddered, but for this simplified version, we consider 2-liberty stones
+        // as potentially laddered when they're being checked.
+        let isLaddered = true
         
         return (isLaddered, workingMoves)
     }

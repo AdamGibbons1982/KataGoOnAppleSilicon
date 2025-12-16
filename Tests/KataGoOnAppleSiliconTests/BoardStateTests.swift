@@ -946,6 +946,40 @@ import CoreML
     }
 }
 
+@Test func testBoardStatePlane17WithWorkingMoves() async throws {
+    // Per C++ reference (nninputs.cpp:2563-2598), feature 17 should be non-zero for opponent
+    // stones with >1 liberty that are laddered AND have working moves (escape moves).
+    // The C++ implementation shows that a stone can be laddered (laddered = true) AND have
+    // non-empty workingMoves simultaneously - these are independent properties.
+    
+    let board = Board()
+    // Create a white stone with 2 liberties positioned so that playing at one liberty
+    // would give it more than 2 liberties (making it a working move)
+    // White stone at (3, 3) with liberties at (3, 2) and (3, 4)
+    _ = board.playMove(at: Point(x: 3, y: 3), stone: .white)
+    _ = board.playMove(at: Point(x: 2, y: 3), stone: .black)  // Surround from left
+    _ = board.playMove(at: Point(x: 4, y: 3), stone: .black)  // Surround from right
+    // White stone now has 2 liberties: (3, 2) and (3, 4)
+    // Playing at (3, 2) or (3, 4) would connect to more space, giving >2 liberties
+    
+    // Set nextPlayer to .black so white is the opponent (required for feature 17 condition)
+    let boardState = BoardState(board: board, nextPlayer: .black)
+    
+    // Verify that feature 17 is non-zero at the working move locations.
+    // The working moves are the liberties where playing would give >2 liberties.
+    // Both (3, 2) and (3, 4) should be marked in feature 17.
+    let value1 = boardState.spatial[[0, 17, NSNumber(value: 2), NSNumber(value: 3)]].floatValue
+    let value2 = boardState.spatial[[0, 17, NSNumber(value: 4), NSNumber(value: 3)]].floatValue
+    
+    // Feature 17 should be 1.0 at the working move locations
+    #expect(value1 == 1.0, "Feature 17 should be non-zero at working move location (3, 2)")
+    #expect(value2 == 1.0, "Feature 17 should be non-zero at working move location (3, 4)")
+    
+    // Verify that feature 17 is zero at the stone location itself (feature 17 marks escape moves, not the stone)
+    let stoneValue = boardState.spatial[[0, 17, NSNumber(value: 3), NSNumber(value: 3)]].floatValue
+    #expect(stoneValue == 0.0, "Feature 17 should be zero at the stone location")
+}
+
 @Test func testBoardStateLadderFeaturesAllZero() async throws {
     let board = Board()
     // Board with stones but no ladders
