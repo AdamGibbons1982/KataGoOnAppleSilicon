@@ -219,7 +219,9 @@ Move | Color | GTP Coord | SGF Coord
    ...
 ```
 
-And saves an SGF file (e.g., `game_1765946272.sgf`) containing:
+And saves an SGF file to `.build/test-output/` (e.g., `.build/test-output/game_1765946272.sgf`):
+
+**Note**: SGF files are automatically saved to the `.build/` directory (which is in `.gitignore`), keeping your repository clean even when running tests multiple times.
 ```
 (;FF[4]GM[1]SZ[19]PB[KataGo (Black)]PW[KataGo (White)]KM[7.5];B[cp];W[pp];B[pc];W[dd];B[qf];W[fq];B[dq];W[qn];B[cc];W[cd])
 ```

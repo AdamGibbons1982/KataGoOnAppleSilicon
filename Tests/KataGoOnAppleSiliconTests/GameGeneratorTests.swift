@@ -72,9 +72,15 @@ struct GameGeneratorTests {
             komi: 7.5
         )
 
-        // Save SGF file with timestamp
+        // Save SGF file to .build/test-output/ (which is in .gitignore)
+        let fileManager = FileManager.default
+        let buildOutputDir = ".build/test-output"
+
+        // Create directory if it doesn't exist
+        try fileManager.createDirectory(atPath: buildOutputDir, withIntermediateDirectories: true, attributes: nil)
+
         let timestamp = Int(Date().timeIntervalSince1970)
-        let filename = "game_\(timestamp).sgf"
+        let filename = "\(buildOutputDir)/game_\(timestamp).sgf"
         try SGFGenerator.saveSGF(sgf, to: filename)
 
         print("✓ SGF file saved: \(filename)")

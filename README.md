@@ -123,7 +123,9 @@ Move | Color | GTP Coord | SGF Coord
   10 | White | C16       | cd
 ```
 
-The generated SGF file is saved to the current directory (e.g., `game_1765946272.sgf`) and contains:
+The generated SGF file is saved to `.build/test-output/` (e.g., `.build/test-output/game_1765946272.sgf`) and contains:
+
+**Note**: SGF files are saved to the `.build/` directory, which is in `.gitignore`, so running tests does not make your git status dirty.
 
 ```
 (;FF[4]GM[1]SZ[19]PB[KataGo (Black)]PW[KataGo (White)]KM[7.5];B[cp];W[pp];B[pc];W[dd];B[qf];W[fq];B[dq];W[qn];B[cc];W[cd])
