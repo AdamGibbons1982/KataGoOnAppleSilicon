@@ -54,12 +54,23 @@ public class GTPHandler {
             }
         case "genmove":
             if parts.count >= 2 {
-                let _ = parts[1]  // color, not used yet
+                let colorStr = parts[1]
+                let stone: Stone = colorStr == "black" ? .black : .white
                 do {
                     let boardState = BoardState(board: board)  // Use actual board
                     let output = try katago.predict(board: boardState, profile: "AI")  // Default to AI
                     let move = selectMove(from: output.policy)
-                    return "= \(move)\n\n"
+
+                    // Play the generated move on the board
+                    if let point = parseMove(move) {
+                        if board.playMove(at: point, stone: stone) {
+                            return "= \(move)\n\n"
+                        } else {
+                            return "? illegal move: \(move)\n\n"
+                        }
+                    } else {
+                        return "? failed to parse generated move: \(move)\n\n"
+                    }
                 } catch {
                     return "? \(error.localizedDescription)\n\n"
                 }
