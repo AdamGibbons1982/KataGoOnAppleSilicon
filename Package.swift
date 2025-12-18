@@ -12,10 +12,6 @@ let package = Package(
             name: "KataGoOnAppleSilicon",
             targets: ["KataGoOnAppleSilicon"]
         ),
-        .executable(
-            name: "game-generator",
-            targets: ["game-generator"]
-        ),
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
@@ -33,10 +29,6 @@ let package = Package(
             name: "KataGoOnAppleSiliconIntegrationTests",
             dependencies: ["KataGoOnAppleSilicon"],
             resources: [.copy("ReferenceOutputs")]
-        ),
-        .executableTarget(
-            name: "game-generator",
-            dependencies: ["KataGoOnAppleSilicon"]
         ),
     ]
 )

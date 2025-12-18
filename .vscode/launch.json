@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:KataGoOnAppleSilicon}",
+            "name": "Debug game-generator",
+            "target": "game-generator",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug game-generator"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:KataGoOnAppleSilicon}",
+            "name": "Release game-generator",
+            "target": "game-generator",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release game-generator"
+        }
+    ]
+}
