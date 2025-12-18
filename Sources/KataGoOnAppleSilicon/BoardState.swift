@@ -25,7 +25,8 @@ public struct BoardState {
     ///   - nextPlayer: The player to move next (default: .black)
     ///   - komi: Komi value (default: 7.5)
     ///   - turnNumber: Current turn number (default: 0)
-    public init(board: Board, nextPlayer: Stone = .black, komi: Float = 7.5, turnNumber: Int = 0) {
+    ///   - rules: Rules configuration (default: .defaultRules for backward compatibility)
+    public init(board: Board, nextPlayer: Stone = .black, komi: Float = 7.5, turnNumber: Int = 0, rules: Rules = .defaultRules) {
         // KataGo features: 22 spatial planes
         let spatialShape: [NSNumber] = [1, 22, 19, 19]
         self.spatial = try! MLMultiArray(shape: spatialShape, dataType: .float16)
@@ -37,7 +38,7 @@ public struct BoardState {
         // Fill spatial features (history function needs global array for pass history)
         Self.fillSpatialFeatures(spatial: spatial, board: board, nextPlayer: nextPlayer, global: global)
         // Fill global features (pass history already set by fillPlanes9To13History)
-        Self.fillGlobalFeatures(global: global, board: board, nextPlayer: nextPlayer, komi: komi)
+        Self.fillGlobalFeatures(global: global, board: board, nextPlayer: nextPlayer, komi: komi, rules: rules)
     }
     
     // MARK: - Spatial Features (22 planes)
@@ -527,9 +528,10 @@ public struct BoardState {
     ///   - board: Current board state (for move history, though pass history is set by fillPlanes9To13History)
     ///   - nextPlayer: The player to move next (determines komi perspective)
     ///   - komi: Komi value
+    ///   - rules: Rules configuration for setting features 6-7
     /// Note: Features 0-4 (pass history) are set by fillPlanes9To13History() before this function is called
     /// We don't initialize 0-4 here to preserve the pass history values
-    private static func fillGlobalFeatures(global: MLMultiArray, board: Board, nextPlayer: Stone, komi: Float) {
+    private static func fillGlobalFeatures(global: MLMultiArray, board: Board, nextPlayer: Stone, komi: Float, rules: Rules) {
         // Initialize features 5-18 to zero (0-4 are set by fillPlanes9To13History for pass history)
         for i in 5..<19 {
             global[i] = 0.0
@@ -543,7 +545,7 @@ public struct BoardState {
         
         // Fill individual features
         fillGlobalFeature5Komi(global: global, selfKomi: selfKomi)
-        fillGlobalFeatures6To13ChineseRules(global: global)
+        fillGlobalFeatures6To13ChineseRules(global: global, rules: rules)
         fillGlobalFeature14PassEndsPhase(global: global, board: board, nextPlayer: nextPlayer)
         fillGlobalFeatures15To17Unused(global: global)
         fillGlobalFeature18KomiParityWave(global: global, selfKomi: selfKomi)
@@ -577,18 +579,22 @@ public struct BoardState {
     }
     
     /// Fill global features 6-13: Chinese rules constants
-    /// Features 6-7: Ko rule (0.0 for simple ko)
+    /// - Parameters:
+    ///   - global: MLMultiArray of shape [1, 19]
+    ///   - rules: Rules configuration for setting features 6-7
+    /// Features 6-7: Ko rule encoding (from rules configuration)
     /// Feature 8: Multi-stone suicide allowed (1.0)
     /// Feature 9: Territory scoring (0.0 for area scoring)
     /// Features 10-11: Tax rule (0.0, no tax rule)
     /// Features 12-13: Encore phase (0.0, no encore)
-    private static func fillGlobalFeatures6To13ChineseRules(global: MLMultiArray) {
-        // Features 6-7: Ko rule encoding
-        // KataGo uses positional/situational ko encoding even for Chinese rules
-        // - Feature 6: 1.0 indicates positional/situational ko
-        // - Feature 7: 0.5 indicates ko rule sub-type
-        global[6] = 1.0
-        global[7] = 0.5
+    /// 
+    /// Note: Features 6-7 are configurable via Rules struct:
+    /// - `.defaultRules`: (1.0, 0.5) for backward compatibility with integration tests
+    /// - `.chineseRules`: (0.0, 0.0) per documentation (verify against C++ reference)
+    private static func fillGlobalFeatures6To13ChineseRules(global: MLMultiArray, rules: Rules) {
+        // Features 6-7: Ko rule encoding (from rules configuration)
+        global[6] = NSNumber(value: rules.koRuleFlag1)
+        global[7] = NSNumber(value: rules.koRuleFlag2)
         
         // Feature 8: Multi-stone suicide allowed
         // Chinese rules allow multi-stone suicide

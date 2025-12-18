@@ -6,6 +6,7 @@ public class GTPHandler {
     private let katago: KataGoInference
     private var board: Board = Board()  // Placeholder board
     private var profile: String = "AI"  // Profile to use for inference
+    private var rules: Rules = .defaultRules  // Default rules (backward compatible)
 
     public init(katago: KataGoInference) {
         self.katago = katago
@@ -63,12 +64,24 @@ public class GTPHandler {
             } else {
                 return "? syntax error\n\n"
             }
+        case "kata-set-rules":
+            if parts.count < 2 {
+                return "? Expected at least one argument for kata-set-rules\n\n"
+            }
+            // Join all arguments (skip command name at index 0)
+            let preset = parts[1...].joined(separator: " ").trimmingCharacters(in: .whitespaces).lowercased()
+            if preset == "chinese" {
+                rules = .chineseRules
+                return "= \n\n"
+            } else {
+                return "? Unknown rules '\(preset)'\n\n"
+            }
         case "genmove":
             if parts.count >= 2 {
                 let colorStr = parts[1]
                 let stone: Stone = colorStr == "black" ? .black : .white
                 do {
-                    let boardState = BoardState(board: board)  // Use actual board
+                    let boardState = BoardState(board: board, rules: rules)  // Use actual board and stored rules
                     let output = try katago.predict(board: boardState, profile: profile)  // Use configured profile
                     let move = selectMove(from: output.policy)
 
@@ -95,7 +108,7 @@ public class GTPHandler {
         }
     }
     
-    private let knownCommands = ["protocol_version", "name", "version", "known_command", "list_commands", "boardsize", "clear_board", "komi", "play", "genmove", "quit"]
+    private let knownCommands = ["protocol_version", "name", "version", "known_command", "list_commands", "boardsize", "clear_board", "komi", "play", "genmove", "kata-set-rules", "quit"]
     
     private func parseMove(_ move: String) -> Point? {
         guard move.count >= 2 else { return nil }

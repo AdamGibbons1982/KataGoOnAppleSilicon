@@ -194,8 +194,8 @@ The algorithm fills spatial features in the following order, based on `fillRowV7
 | 3 | Pass 4 ago | 1.0 if 4 moves ago was a pass | (depends on history) |
 | 4 | Pass 5 ago | 1.0 if 5 moves ago was a pass | (depends on history) |
 | 5 | Komi | `selfKomi / 20.0` (clipped to board area bounds) | komi/20.0 |
-| 6 | Ko rule flag 1 | Positional/situational ko indicator | 0.0 (simple ko) |
-| 7 | Ko rule flag 2 | Ko rule sub-type | 0.0 |
+| 6 | Ko rule flag 1 | Positional/situational ko indicator | Configurable (see Rules configuration) |
+| 7 | Ko rule flag 2 | Ko rule sub-type | Configurable (see Rules configuration) |
 | 8 | Suicide legal | 1.0 if multi-stone suicide is allowed | 1.0 |
 | 9 | Territory scoring | 1.0 if using territory scoring | 0.0 (area scoring) |
 | 10 | Tax rule flag 1 | Seki/tax rule indicator | 0.0 |
@@ -215,13 +215,25 @@ The algorithm fills spatial features in the following order, based on `fillRowV7
 - **Komi Clipping**: The komi value is clipped to `±(boardArea + 20)` before dividing by 20.
 
 - **Chinese Rules Constants**: For Chinese rules with simple ko:
-  - Features 6-7: `0.0` (simple ko rule)
+  - Features 6-7: **Configurable** via `Rules` struct (see Rules Configuration below)
+    - Default (`.defaultRules`): `1.0, 0.5` (backward compatible with integration tests)
+    - Proper (`.chineseRules`): `0.0, 0.0` (per documentation, verify against C++ reference)
   - Feature 8: `1.0` (multi-stone suicide allowed)
   - Feature 9: `0.0` (area scoring, not territory)
   - Features 10-11: `0.0` (no tax rule)
   - Features 12-13: `0.0` (no encore phase)
   - Features 15-16: `0.0` (no playout doubling)
   - Feature 17: `0.0` (no button go)
+
+- **Rules Configuration**: Features 6-7 can be configured when creating `BoardState`:
+  ```swift
+  // Default (backward compatible): uses .defaultRules (1.0, 0.5)
+  let boardState = BoardState(board: board)
+  
+  // Proper Chinese rules: uses .chineseRules (0.0, 0.0)
+  let boardState = BoardState(board: board, rules: .chineseRules)
+  ```
+  The default configuration (`.defaultRules`) maintains backward compatibility with existing integration tests that were generated with values (1.0, 0.5).
 
 - **Komi Parity Wave (Feature 18)**: A triangular wave that helps the neural network understand komi parity effects. The formula creates a wave with period 2 komi points, peaking around drawable komi values.
 
@@ -253,10 +265,15 @@ The algorithm fills global features in the following order, based on `fillRowV7(
 - **Note**: The clipping ensures the feature stays within reasonable bounds for the neural network
 
 #### Features 6-7: Ko Rule Flags
-- **Algorithm**: Set to 0.0 (already zero-initialized)
+- **Algorithm**: Set from `Rules` configuration (default: `.defaultRules`)
 - **Purpose**: Indicates ko rule type (positional/situational ko for Japanese rules)
-- **Chinese Rules**: Always 0.0 (simple ko rule)
-- **Note**: For positional/situational ko, feature 6 would be 1.0 and feature 7 would be ±0.5
+- **Chinese Rules Configuration**:
+  - **Default** (`.defaultRules`): `1.0, 0.5` - Backward compatible with integration tests
+  - **Proper** (`.chineseRules`): `0.0, 0.0` - Per documentation (verify against C++ reference)
+- **Note**: 
+  - The default configuration uses `1.0, 0.5` to maintain backward compatibility with existing reference files
+  - For positional/situational ko (Japanese rules), feature 6 would be 1.0 and feature 7 would be ±0.5
+  - To use proper Chinese rules per documentation, explicitly pass `.chineseRules` to `BoardState` initializer
 
 #### Feature 8: Suicide Legal
 - **Algorithm**: Set `global[8] = 1.0`

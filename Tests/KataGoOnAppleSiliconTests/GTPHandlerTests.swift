@@ -213,3 +213,47 @@ import CoreML
     #expect(response.starts(with: "= T"))
 }
 
+// MARK: - kata-set-rules Tests
+
+@Test func testKataSetRulesChinese() async throws {
+    let katago = KataGoInference()
+    let handler = GTPHandler(katago: katago)
+    let response = handler.handleCommand("kata-set-rules chinese")
+    #expect(response == "= \n\n")
+}
+
+@Test func testKataSetRulesUnknownPreset() async throws {
+    let katago = KataGoInference()
+    let handler = GTPHandler(katago: katago)
+    let response = handler.handleCommand("kata-set-rules japanese")
+    #expect(response == "? Unknown rules 'japanese'\n\n")
+}
+
+@Test func testKataSetRulesMissingArgument() async throws {
+    let katago = KataGoInference()
+    let handler = GTPHandler(katago: katago)
+    let response = handler.handleCommand("kata-set-rules")
+    #expect(response == "? Expected at least one argument for kata-set-rules\n\n")
+}
+
+@Test func testKataSetRulesCaseInsensitive() async throws {
+    let katago = KataGoInference()
+    let handler = GTPHandler(katago: katago)
+    // Test that "CHINESE" (uppercase) works
+    let response = handler.handleCommand("kata-set-rules CHINESE")
+    #expect(response == "= \n\n")
+}
+
+@Test func testKataSetRulesKnownCommand() async throws {
+    let katago = KataGoInference()
+    let handler = GTPHandler(katago: katago)
+    #expect(handler.handleCommand("known_command kata-set-rules") == "= true\n\n")
+}
+
+@Test func testKataSetRulesInListCommands() async throws {
+    let katago = KataGoInference()
+    let handler = GTPHandler(katago: katago)
+    let response = handler.handleCommand("list_commands")
+    #expect(response.contains("kata-set-rules"))
+}
+

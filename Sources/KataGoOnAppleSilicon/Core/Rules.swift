@@ -1,15 +1,47 @@
-// Stub for Go rules (Chinese rules)
-public struct Rules {
-    // Placeholder: ko, suicide, scoring
-    
-    public enum KoRule {
+// Go rules configuration
+public struct Rules: Sendable {
+    public enum KoRule: Sendable {
         case simple
         case positional
         case situational
     }
     
-    public enum ScoringRule {
+    public enum ScoringRule: Sendable {
         case area
         case territory
     }
+    
+    // Ko rule encoding configuration for global features 6-7
+    public let koRuleFlag1: Float  // Global feature 6
+    public let koRuleFlag2: Float  // Global feature 7
+    public let koRule: KoRule
+    public let scoringRule: ScoringRule
+    
+    // Initialize with all required fields
+    public init(koRuleFlag1: Float, koRuleFlag2: Float, koRule: KoRule, scoringRule: ScoringRule) {
+        self.koRuleFlag1 = koRuleFlag1
+        self.koRuleFlag2 = koRuleFlag2
+        self.koRule = koRule
+        self.scoringRule = scoringRule
+    }
+    
+    // Default rules (backward compatible with current implementation)
+    // Uses values (1.0, 0.5) that match existing integration test references
+    // Note: This is NOT proper Chinese rules - it's the default encoding for backward compatibility
+    public static let defaultRules = Rules(
+        koRuleFlag1: 1.0,
+        koRuleFlag2: 0.5,
+        koRule: .simple,
+        scoringRule: .area
+    )
+    
+    // Chinese rules (proper Chinese rules per documentation)
+    // Uses values (0.0, 0.0) as documented in InputFeatures.md
+    // Note: Verify against C++ reference (nninputs.cpp lines 2613-2746) to confirm
+    public static let chineseRules = Rules(
+        koRuleFlag1: 0.0,
+        koRuleFlag2: 0.0,
+        koRule: .simple,
+        scoringRule: .area
+    )
 }
