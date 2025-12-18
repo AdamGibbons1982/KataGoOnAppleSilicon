@@ -11,24 +11,21 @@
 ```swift
 import KataGoOnAppleSilicon
 
-// Create board
-let board = Board()
-board.playMove(at: Point(x: 3, y: 3), stone: .black)
-
-// Load model
+// Initialize KataGo and load models
 let katago = KataGoInference()
-try katago.loadModel(for: "AI")
+try katago.loadModel(for: "AI")    // Load AI model (strongest 28b)
+try katago.loadModel(for: "20k")   // Load human SL model (20k profile)
 
-// Create board state for inference
-let boardState = BoardState(board: board)
-
-// Predict
-let output = try katago.predict(board: boardState, profile: "AI")
-
-// GTP handling
+// Create GTP handler
 let gtp = GTPHandler(katago: katago)
+
+// Use GTP commands (board management is handled internally)
 let response = gtp.handleCommand("genmove white")
 print(response)  // "= D4\n\n"
+
+// Switch to 20k profile if needed
+gtp.setProfile("20k")
+let response20k = gtp.handleCommand("genmove black")
 ```
 
 ## Requirements

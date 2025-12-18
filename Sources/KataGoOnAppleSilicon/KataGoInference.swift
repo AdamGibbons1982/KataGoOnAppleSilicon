@@ -12,8 +12,11 @@ extension MLModel: ModelProtocol {}
 /// Main class for KataGo inference
 public class KataGoInference {
     private let modelLoader = ModelLoader()
-    private var models: [String: any ModelProtocol] = [:]
-    
+
+    // Store only two actual models to avoid duplication
+    private var aiModel: (any ModelProtocol)?
+    private var humanSLModel: (any ModelProtocol)?
+
     public init() {}
     
     /// Check if a profile string represents a valid human SL profile (1d-9d or 1k-20k)
@@ -40,25 +43,62 @@ public class KataGoInference {
             return number >= 1 && number <= 20
         }
     }
-    
+
+    /// Get the appropriate model for a given profile
+    /// - Parameter profile: Profile name (e.g., "AI", "20k", "5d")
+    /// - Returns: The model instance for this profile
+    /// - Throws: KataGoError.modelNotFound if model not loaded
+    private func getModel(for profile: String) throws -> any ModelProtocol {
+        if profile == "AI" {
+            guard let model = aiModel else {
+                throw KataGoError.modelNotFound("AI model not loaded. Call loadModel(for: \"AI\") first.")
+            }
+            return model
+        } else if isHumanSLProfile(profile) {
+            guard let model = humanSLModel else {
+                throw KataGoError.modelNotFound("Human SL model not loaded. Call loadModel(for: \"20k\") or similar first.")
+            }
+            return model
+        } else {
+            // For testing: treat unknown profiles as AI model
+            // This maintains backward compatibility with tests that use arbitrary profile names
+            guard let model = aiModel else {
+                throw KataGoError.modelNotFound("AI model not loaded. Call loadModel(for: \"AI\") first.")
+            }
+            return model
+        }
+    }
+
     /// Inject a model for testing purposes
     internal func setModel(_ model: any ModelProtocol, for profile: String) {
-        models[profile] = model
+        if profile == "AI" {
+            aiModel = model
+        } else if isHumanSLProfile(profile) {
+            humanSLModel = model
+        } else {
+            // For testing: treat unknown profiles as AI model
+            // This maintains backward compatibility with tests that use arbitrary profile names
+            aiModel = model
+        }
     }
     
     /// Load a model for a specific profile
     public func loadModel(for profile: String) throws {
-        let modelName: String
         if profile == "AI" {
-            modelName = "KataGoModel19x19fp16-adam-s11165M"  // Strongest 28b model
+            // Only load if not already loaded
+            if aiModel == nil {
+                let modelName = "KataGoModel19x19fp16-adam-s11165M"  // Strongest 28b model
+                aiModel = try modelLoader.loadModel(name: modelName)
+            }
         } else if isHumanSLProfile(profile) {
-            modelName = "KataGoModel19x19fp16m1"  // Human SL model
+            // Only load if not already loaded
+            if humanSLModel == nil {
+                let modelName = "KataGoModel19x19fp16m1"  // Human SL model
+                humanSLModel = try modelLoader.loadModel(name: modelName)
+            }
         } else {
             throw KataGoError.unsupportedProfile(profile)
         }
-        
-        let model = try modelLoader.loadModel(name: modelName)
-        models[profile] = model
     }
     
     /// Perform inference on the given board state
@@ -67,10 +107,8 @@ public class KataGoInference {
     ///   - profile: Model profile to use
     ///   - nextPlayer: The player to move next (required for human SL models, defaults to .black)
     public func predict(board: BoardState, profile: String, nextPlayer: Stone = .black) throws -> ModelOutput {
-        guard let model = models[profile] else {
-            throw KataGoError.modelNotFound("Model for profile \(profile) not loaded")
-        }
-        
+        let model = try getModel(for: profile)
+
         let startTime = Date()
         
         do {
