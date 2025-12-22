@@ -83,7 +83,7 @@ public class GTPHandler {
                 do {
                     let boardState = BoardState(board: board, rules: rules)  // Use actual board and stored rules
                     let output = try katago.predict(board: boardState, profile: profile)  // Use configured profile
-                    let move = selectMove(from: output.policy)
+                    let move = selectMove(from: output.policy, greedy: false)
 
                     // Play the generated move on the board
                     if let point = parseMove(move) {
@@ -128,17 +128,21 @@ public class GTPHandler {
         return Point(x: col, y: 19 - row)  // GTP is 1-based, top-left
     }
     
-    private func selectMove(from policy: MLMultiArray) -> String {
+    private func selectMove(from policy: MLMultiArray, greedy: Bool = true) -> String {
         // Policy shape is [1, 6, 362] - access board positions as [0, 0, y*19+x]
         // For 19x19 board: position index = y * 19 + x (0-360), channel 0 is main policy
+        return greedy ? selectMoveGreedy(from: policy) : selectMoveProbabilistic(from: policy)
+    }
+    
+    private func selectMoveGreedy(from policy: MLMultiArray) -> String {
+        // Greedy sampling: select the move with maximum probability
         var maxProb: Float = 0
         var maxY = 0
         var maxX = 0
+        
         for y in 0..<19 {
             for x in 0..<19 {
-                // Access policy at position index = y * 19 + x, channel 0
-                let positionIndex = y * 19 + x
-                let prob = Float(policy[[0, 0, NSNumber(value: positionIndex)]].doubleValue)
+                let prob = getPolicyProbability(policy: policy, x: x, y: y)
                 if prob > maxProb {
                     maxProb = prob
                     maxY = y
@@ -146,8 +150,69 @@ public class GTPHandler {
                 }
             }
         }
-        let colLetter = maxX < 8 ? String(UnicodeScalar(65 + maxX)!) : String(UnicodeScalar(66 + maxX)!)  // Skip I
-        let row = 19 - maxY  // GTP: 19 at top
+        
+        return coordinateToGTP(x: maxX, y: maxY)
+    }
+    
+    private func selectMoveProbabilistic(from policy: MLMultiArray) -> String {
+        // Non-greedy sampling: sample from the policy distribution
+        let moves = collectMovesWithProbabilities(from: policy)
+        
+        guard !moves.isEmpty else {
+            // Fallback to greedy if no valid moves
+            return selectMoveGreedy(from: policy)
+        }
+        
+        let totalProb = moves.reduce(0.0) { $0 + $1.prob }
+        guard totalProb > 0 else {
+            return selectMoveGreedy(from: policy)
+        }
+        
+        // Normalize probabilities
+        let normalizedMoves = moves.map { (x: $0.x, y: $0.y, prob: $0.prob / totalProb) }
+        
+        // Sample from the distribution
+        let random = Float.random(in: 0..<1)
+        var cumulativeProb: Float = 0
+        
+        for move in normalizedMoves {
+            cumulativeProb += move.prob
+            if random <= cumulativeProb {
+                return coordinateToGTP(x: move.x, y: move.y)
+            }
+        }
+        
+        // Fallback (shouldn't reach here, but just in case)
+        let lastMove = normalizedMoves.last!
+        return coordinateToGTP(x: lastMove.x, y: lastMove.y)
+    }
+    
+    private func getPolicyProbability(policy: MLMultiArray, x: Int, y: Int) -> Float {
+        // Access policy at position index = y * 19 + x, channel 0
+        let positionIndex = y * 19 + x
+        return Float(policy[[0, 0, NSNumber(value: positionIndex)]].doubleValue)
+    }
+    
+    private func collectMovesWithProbabilities(from policy: MLMultiArray) -> [(x: Int, y: Int, prob: Float)] {
+        var moves: [(x: Int, y: Int, prob: Float)] = []
+        
+        for y in 0..<19 {
+            for x in 0..<19 {
+                let prob = getPolicyProbability(policy: policy, x: x, y: y)
+                if prob > 0 {
+                    moves.append((x: x, y: y, prob: prob))
+                }
+            }
+        }
+        
+        return moves
+    }
+    
+    private func coordinateToGTP(x: Int, y: Int) -> String {
+        // Convert board coordinates (x, y) to GTP format
+        // GTP: columns A-T (skipping I), rows 1-19 (19 at top)
+        let colLetter = x < 8 ? String(UnicodeScalar(65 + x)!) : String(UnicodeScalar(66 + x)!)  // Skip I
+        let row = 19 - y  // GTP: 19 at top
         return "\(colLetter)\(row)"
     }
 }
