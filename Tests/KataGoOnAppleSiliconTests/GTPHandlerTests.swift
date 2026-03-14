@@ -345,3 +345,70 @@ private func makeHandlerWithMock() -> GTPHandler {
     #expect(response != "= resign\n\n")
 }
 
+// MARK: - Friendly Pass Tests
+
+@Test func testPlayPassHandled() async throws {
+    let handler = GTPHandler(katago: KataGoInference())
+    #expect(handler.handleCommand("play black pass") == "= \n\n")
+    #expect(handler.handleCommand("play white PASS") == "= \n\n")
+    #expect(handler.handleCommand("play black Pass") == "= \n\n")
+}
+
+@Test func testFriendlyPassDisabledByDefault() async throws {
+    let katago = KataGoInference()
+    katago.setModel(MockModelWithValidOutputs(targetX: 0, targetY: 0), for: "AI")
+    let handler = GTPHandler(katago: katago)
+    _ = handler.handleCommand("play black pass")
+    let response = handler.handleCommand("genmove white")
+    #expect(response != "= pass\n\n")
+    #expect(response.starts(with: "= "))
+}
+
+@Test func testFriendlyPassWhenSafe() async throws {
+    let katago = KataGoInference()
+    katago.setModel(MockModelWithValidOutputs(targetX: 0, targetY: 0), for: "AI")
+    let handler = GTPHandler(katago: katago)
+    // Generous thresholds: any delta is within range
+    handler.setFriendlyPassOptions(enabled: true, winRateDelta: 0.5, leadDelta: 100.0)
+    _ = handler.handleCommand("play black pass")
+    let response = handler.handleCommand("genmove white")
+    #expect(response == "= pass\n\n")
+}
+
+@Test func testFriendlyPassNotTriggeredWithoutOpponentPass() async throws {
+    let katago = KataGoInference()
+    katago.setModel(MockModelWithValidOutputs(targetX: 0, targetY: 0), for: "AI")
+    let handler = GTPHandler(katago: katago)
+    handler.setFriendlyPassOptions(enabled: true, winRateDelta: 0.5, leadDelta: 100.0)
+    _ = handler.handleCommand("play black A1")  // regular move, not pass
+    let response = handler.handleCommand("genmove white")
+    #expect(response != "= pass\n\n")
+    #expect(response.starts(with: "= "))
+}
+
+@Test func testFriendlyPassFlagResetAfterEvaluation() async throws {
+    let katago = KataGoInference()
+    katago.setModel(MockModelWithValidOutputs(targetX: 0, targetY: 0), for: "AI")
+    let handler = GTPHandler(katago: katago)
+    handler.setFriendlyPassOptions(enabled: true, winRateDelta: 0.5, leadDelta: 100.0)
+    _ = handler.handleCommand("play black pass")
+    let first = handler.handleCommand("genmove white")
+    #expect(first == "= pass\n\n")
+    // No new opponent pass; flag was consumed
+    let second = handler.handleCommand("genmove white")
+    #expect(second != "= pass\n\n")
+    #expect(second.starts(with: "= "))
+}
+
+@Test func testFriendlyPassResetOnClearBoard() async throws {
+    let katago = KataGoInference()
+    katago.setModel(MockModelWithValidOutputs(targetX: 0, targetY: 0), for: "AI")
+    let handler = GTPHandler(katago: katago)
+    handler.setFriendlyPassOptions(enabled: true, winRateDelta: 0.5, leadDelta: 100.0)
+    _ = handler.handleCommand("play black pass")
+    _ = handler.handleCommand("clear_board")
+    let response = handler.handleCommand("genmove white")
+    #expect(response != "= pass\n\n")
+    #expect(response.starts(with: "= "))
+}
+

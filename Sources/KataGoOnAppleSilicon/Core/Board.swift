@@ -10,6 +10,11 @@ public enum Stone: Int {
     case empty = 0
     case black = 1
     case white = 2
+
+    /// The opposing stone color. Undefined for `.empty`.
+    public var opponent: Stone {
+        return self == .black ? .white : .black
+    }
 }
 
 public struct Point: Hashable {

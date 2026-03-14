@@ -10,6 +10,10 @@ public class GTPHandler {
     private var resignWinRateThreshold: Double = 0.10
     private var resignConsecutiveMoveThreshold: Int = 10
     private var consecutiveBehindCount: [Stone: Int] = [.black: 0, .white: 0]
+    private var friendlyPassEnabled: Bool = false
+    private var friendlyPassWinRateDelta: Double = 0.02
+    private var friendlyPassLeadDelta: Double = 1.0
+    private var lastOpponentMoveWasPass: Bool = false
 
     public init(katago: KataGoInference) {
         self.katago = katago
@@ -38,6 +42,21 @@ public class GTPHandler {
         consecutiveBehindCount = [.black: 0, .white: 0]
     }
 
+    /// Configure friendly pass behavior.
+    /// - Parameters:
+    ///   - enabled: Whether AI may respond to an opponent pass with its own pass.
+    ///   - winRateDelta: Max allowed change in win rate (0.0–1.0). Default 0.02.
+    ///   - leadDelta: Max allowed change in score lead (points). Default 1.0.
+    public func setFriendlyPassOptions(
+        enabled: Bool,
+        winRateDelta: Double = 0.02,
+        leadDelta: Double = 1.0
+    ) {
+        friendlyPassEnabled = enabled
+        friendlyPassWinRateDelta = winRateDelta
+        friendlyPassLeadDelta = leadDelta
+    }
+
     /// Process a GTP command and return response
     public func handleCommand(_ command: String) -> String {
         let parts = command.split(separator: " ").map { String($0) }
@@ -60,6 +79,7 @@ public class GTPHandler {
         case "clear_board":
             board = Board()
             consecutiveBehindCount = [.black: 0, .white: 0]
+            lastOpponentMoveWasPass = false
             return "= \n\n"
         case "komi":
             // Set komi, but placeholder
@@ -69,14 +89,21 @@ public class GTPHandler {
                 let colorStr = parts[1]
                 let moveStr = parts[2]
                 let stone: Stone = colorStr == "black" ? .black : .white
-                if let point = parseMove(moveStr) {
-                    if board.playMove(at: point, stone: stone) {
-                        return "= \n\n"
-                    } else {
-                        return "? illegal move\n\n"
-                    }
+                if moveStr.lowercased() == "pass" {
+                    _ = board.playPass(stone: stone)
+                    lastOpponentMoveWasPass = true
+                    return "= \n\n"
                 } else {
-                    return "? syntax error\n\n"
+                    lastOpponentMoveWasPass = false
+                    if let point = parseMove(moveStr) {
+                        if board.playMove(at: point, stone: stone) {
+                            return "= \n\n"
+                        } else {
+                            return "? illegal move\n\n"
+                        }
+                    } else {
+                        return "? syntax error\n\n"
+                    }
                 }
             } else {
                 return "? syntax error\n\n"
@@ -115,6 +142,13 @@ public class GTPHandler {
                         }
                     } else {
                         consecutiveBehindCount[stone] = 0
+                    }
+
+                    // Friendly pass: if opponent just passed and passing is safe, pass back
+                    if friendlyPassEnabled && lastOpponentMoveWasPass {
+                        if let passResponse = try tryFriendlyPass(stone: stone, currentOutput: postOutput) {
+                            return passResponse
+                        }
                     }
 
                     let move = selectMove(from: output.policy, greedy: false)
@@ -248,5 +282,57 @@ public class GTPHandler {
         let colLetter = x < 8 ? String(UnicodeScalar(65 + x)!) : String(UnicodeScalar(66 + x)!)  // Skip I
         let row = 19 - y  // GTP: 19 at top
         return "\(colLetter)\(row)"
+    }
+
+    /// Evaluate whether passing is safe after the opponent passed.
+    /// Runs a second inference on the post-pass board (opponent to move) and compares
+    /// metrics from the AI's perspective. Inference cost: one extra model call.
+    /// - Parameters:
+    ///   - stone: The AI's color.
+    ///   - currentOutput: Post-processed output for current position (AI's perspective).
+    /// - Returns: GTP "= pass\n\n" if passing is safe, nil otherwise.
+    /// - Throws: Rethrows inference errors from katago.predict.
+    private func tryFriendlyPass(
+        stone: Stone,
+        currentOutput: PostProcessedModelOutput
+    ) throws -> String? {
+        // Snapshot AI's current metrics (perspective-adjusted to AI's color).
+        let currentWinRate = currentOutput.whiteWinProb
+        let currentLead = currentOutput.whiteLead
+
+        // Simulate AI passing on a copy of the board.
+        let postPassBoard = board.copy()
+        _ = postPassBoard.playPass(stone: stone)
+
+        // Run inference with opponent to move next.
+        let postPassBoardState = BoardState(board: postPassBoard, rules: rules)
+        let postPassModelOutput = try katago.predict(board: postPassBoardState, profile: profile)
+
+        // Inference succeeded — consume the flag regardless of whether we pass.
+        lastOpponentMoveWasPass = false
+
+        // Post-process from opponent's perspective (they move next after the pass).
+        let postPassOutput = postPassModelOutput.postprocess(
+            board: postPassBoard,
+            nextPlayer: stone.opponent
+        )
+
+        // Convert opponent-perspective metrics back to AI's perspective.
+        // After the perspective flip in postprocessValueOutputs (line 159-165 of PostProcessing.swift),
+        // postPassOutput.whiteLossProb = opponent's loss prob = AI's win prob from that position.
+        // postPassOutput.whiteLead = opponent's lead → AI's lead = -postPassOutput.whiteLead.
+        let postPassWinRate = postPassOutput.whiteLossProb
+        let postPassLead = -postPassOutput.whiteLead
+
+        // Decline if passing changes win rate or lead beyond thresholds.
+        let winRateDiff = abs(currentWinRate - postPassWinRate)
+        let leadDiff = abs(currentLead - postPassLead)
+        guard winRateDiff <= friendlyPassWinRateDelta && leadDiff <= friendlyPassLeadDelta else {
+            return nil
+        }
+
+        // Safe to pass: apply to the live board and return GTP response.
+        _ = board.playPass(stone: stone)
+        return "= pass\n\n"
     }
 }
