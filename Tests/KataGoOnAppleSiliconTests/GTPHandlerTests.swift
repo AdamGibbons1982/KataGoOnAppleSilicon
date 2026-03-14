@@ -257,3 +257,48 @@ import CoreML
     #expect(response.contains("kata-set-rules"))
 }
 
+// MARK: - Resign Tests
+
+private func makeHandlerWithMock() -> GTPHandler {
+    let katago = KataGoInference()
+    let mockModel = MockModelWithValidOutputs(targetX: 0, targetY: 0)
+    katago.setModel(mockModel, for: "AI")
+    return GTPHandler(katago: katago)
+}
+
+@Test func testGenmoveNeverResign() async throws {
+    let handler = makeHandlerWithMock()
+    handler.setResignThreshold(winRate: 0.0, consecutiveMoves: 1)
+    let response = handler.handleCommand("genmove black")
+    #expect(response.starts(with: "= "))
+    #expect(response != "= resign\n\n")
+}
+
+@Test func testGenmoveResignAfterConsecutiveBehind() async throws {
+    let handler = makeHandlerWithMock()
+    handler.setResignThreshold(winRate: 1.0, consecutiveMoves: 2)
+    // Call 1: count=1 < 2, plays black at A19
+    let response1 = handler.handleCommand("genmove black")
+    #expect(response1.starts(with: "= "))
+    #expect(response1 != "= resign\n\n")
+    // Call 2: count=2 >= 2, resign before touching board
+    let response2 = handler.handleCommand("genmove white")
+    #expect(response2 == "= resign\n\n")
+}
+
+@Test func testGenmoveClearBoardResetsConsecutiveCount() async throws {
+    let handler = makeHandlerWithMock()
+    handler.setResignThreshold(winRate: 1.0, consecutiveMoves: 2)
+    // Call 1: count=1, plays black at A19
+    _ = handler.handleCommand("genmove black")
+    // clear_board resets count to 0 and clears board
+    _ = handler.handleCommand("clear_board")
+    // Call 2 after reset: count=1, plays black at A19 again (board is clear)
+    let response3 = handler.handleCommand("genmove black")
+    #expect(response3.starts(with: "= "))
+    #expect(response3 != "= resign\n\n")
+    // Call 3: count=2 >= 2, resign
+    let response4 = handler.handleCommand("genmove white")
+    #expect(response4 == "= resign\n\n")
+}
+

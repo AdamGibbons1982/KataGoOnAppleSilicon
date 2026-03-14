@@ -7,6 +7,9 @@ public class GTPHandler {
     private var board: Board = Board()  // Placeholder board
     private var profile: String = "AI"  // Profile to use for inference
     private var rules: Rules = .defaultRules  // Default rules (backward compatible)
+    private var resignWinRateThreshold: Double = 0.10
+    private var resignConsecutiveMoveThreshold: Int = 10
+    private var consecutiveBehindCount: Int = 0
 
     public init(katago: KataGoInference) {
         self.katago = katago
@@ -21,7 +24,18 @@ public class GTPHandler {
     public func getProfile() -> String {
         return profile
     }
-    
+
+    /// Configure resign thresholds.
+    /// - Parameters:
+    ///   - winRate: Current player win-rate threshold (0.0–1.0). Resign triggers when win rate
+    ///              stays below this value for `consecutiveMoves` consecutive genmove calls.
+    ///   - consecutiveMoves: Number of consecutive below-threshold moves before resigning.
+    public func setResignThreshold(winRate: Double, consecutiveMoves: Int) {
+        resignWinRateThreshold = winRate
+        resignConsecutiveMoveThreshold = consecutiveMoves
+        consecutiveBehindCount = 0
+    }
+
     /// Process a GTP command and return response
     public func handleCommand(_ command: String) -> String {
         let parts = command.split(separator: " ").map { String($0) }
@@ -43,6 +57,7 @@ public class GTPHandler {
             return "= \n\n"  // Assume 19x19
         case "clear_board":
             board = Board()
+            consecutiveBehindCount = 0
             return "= \n\n"
         case "komi":
             // Set komi, but placeholder
@@ -83,6 +98,19 @@ public class GTPHandler {
                 do {
                     let boardState = BoardState(board: board, rules: rules)  // Use actual board and stored rules
                     let output = try katago.predict(board: boardState, profile: profile)  // Use configured profile
+
+                    // Resign logic
+                    let postOutput = output.postprocess(board: board, nextPlayer: stone)
+                    let winRate = postOutput.whiteWinProb
+                    if winRate < resignWinRateThreshold {
+                        consecutiveBehindCount += 1
+                        if consecutiveBehindCount >= resignConsecutiveMoveThreshold {
+                            return "= resign\n\n"
+                        }
+                    } else {
+                        consecutiveBehindCount = 0
+                    }
+
                     let move = selectMove(from: output.policy, greedy: false)
 
                     // Play the generated move on the board
