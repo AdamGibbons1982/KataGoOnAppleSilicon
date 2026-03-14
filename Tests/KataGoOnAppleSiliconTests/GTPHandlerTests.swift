@@ -277,28 +277,60 @@ private func makeHandlerWithMock() -> GTPHandler {
 @Test func testGenmoveResignAfterConsecutiveBehind() async throws {
     let handler = makeHandlerWithMock()
     handler.setResignThreshold(winRate: 1.0, consecutiveMoves: 2)
-    // Call 1: count=1 < 2, plays black at A19
+    // Call 1 (black): black_count=1 < 2, plays
     let response1 = handler.handleCommand("genmove black")
     #expect(response1.starts(with: "= "))
     #expect(response1 != "= resign\n\n")
-    // Call 2: count=2 >= 2, resign before touching board
-    let response2 = handler.handleCommand("genmove white")
+    // Call 2 (black): black_count=2 >= 2, resign fires before playMove
+    let response2 = handler.handleCommand("genmove black")
     #expect(response2 == "= resign\n\n")
 }
 
 @Test func testGenmoveClearBoardResetsConsecutiveCount() async throws {
     let handler = makeHandlerWithMock()
     handler.setResignThreshold(winRate: 1.0, consecutiveMoves: 2)
-    // Call 1: count=1, plays black at A19
+    // Call 1 (black): black_count=1, plays at A19
     _ = handler.handleCommand("genmove black")
-    // clear_board resets count to 0 and clears board
+    // clear_board resets both counters and the board
     _ = handler.handleCommand("clear_board")
-    // Call 2 after reset: count=1, plays black at A19 again (board is clear)
+    // Call 2 after reset (black): black_count=1, plays at A19 again
     let response3 = handler.handleCommand("genmove black")
     #expect(response3.starts(with: "= "))
     #expect(response3 != "= resign\n\n")
-    // Call 3: count=2 >= 2, resign
-    let response4 = handler.handleCommand("genmove white")
+    // Call 3 (black): black_count=2 >= 2, resign fires before playMove
+    let response4 = handler.handleCommand("genmove black")
     #expect(response4 == "= resign\n\n")
+}
+
+@Test func testGenmoveColorIsolation() async throws {
+    // Black is "losing" (winRate ≈ 0.16 < 0.5), White is "winning" (winRate ≈ 0.77 >= 0.5).
+    // White's winning calls should NOT reset Black's consecutive-behind counter.
+    let handler = makeHandlerWithMock()
+    handler.setResignThreshold(winRate: 0.5, consecutiveMoves: 2)
+    // Call 1 (black): black_count=1 < 2, plays at A19
+    _ = handler.handleCommand("genmove black")
+    // White is winning: white_count stays 0 — and must NOT reset black_count.
+    // Board conflict is irrelevant here; we only verify white does not resign.
+    let whiteResponse = handler.handleCommand("genmove white")
+    #expect(whiteResponse != "= resign\n\n")
+    // Black continues losing: black_count=2 >= 2, resign fires before playMove
+    let blackResponse = handler.handleCommand("genmove black")
+    #expect(blackResponse == "= resign\n\n")
+}
+
+@Test func testGenmoveResignWhiteButNotBlack() async throws {
+    // White calls accumulate white_count independently of black_count (which stays at 0).
+    let handler = makeHandlerWithMock()
+    handler.setResignThreshold(winRate: 1.0, consecutiveMoves: 2)
+    // White call 1: white_count=1 < 2, plays
+    let r1 = handler.handleCommand("genmove white")
+    #expect(r1.starts(with: "= "))
+    #expect(r1 != "= resign\n\n")
+    // White call 2: white_count=2 >= 2, resign fires before playMove
+    let r2 = handler.handleCommand("genmove white")
+    #expect(r2 == "= resign\n\n")
+    // Black has never been called: black_count=0. First black call should NOT resign.
+    let r3 = handler.handleCommand("genmove black")
+    #expect(r3 != "= resign\n\n")
 }
 
