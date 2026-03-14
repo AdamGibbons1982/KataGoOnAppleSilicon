@@ -412,3 +412,14 @@ private func makeHandlerWithMock() -> GTPHandler {
     #expect(response.starts(with: "= "))
 }
 
+@Test func testFriendlyPassNotTriggeredBySameColorPass() async throws {
+    let katago = KataGoInference()
+    katago.setModel(MockModelWithValidOutputs(targetX: 0, targetY: 0), for: "AI")
+    let handler = GTPHandler(katago: katago)
+    handler.setFriendlyPassOptions(enabled: true, winRateDelta: 0.5, leadDelta: 100.0)
+    _ = handler.handleCommand("play white pass")   // AI's own color passes via play
+    let response = handler.handleCommand("genmove white")
+    #expect(response != "= pass\n\n")              // must NOT trigger friendly pass
+    #expect(response.starts(with: "= "))
+}
+

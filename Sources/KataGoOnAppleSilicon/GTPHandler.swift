@@ -13,7 +13,7 @@ public class GTPHandler {
     private var friendlyPassEnabled: Bool = false
     private var friendlyPassWinRateDelta: Double = 0.02
     private var friendlyPassLeadDelta: Double = 1.0
-    private var lastOpponentMoveWasPass: Bool = false
+    private var lastPlayPassColor: Stone? = nil
 
     public init(katago: KataGoInference) {
         self.katago = katago
@@ -79,7 +79,7 @@ public class GTPHandler {
         case "clear_board":
             board = Board()
             consecutiveBehindCount = [.black: 0, .white: 0]
-            lastOpponentMoveWasPass = false
+            lastPlayPassColor = nil
             return "= \n\n"
         case "komi":
             // Set komi, but placeholder
@@ -91,10 +91,10 @@ public class GTPHandler {
                 let stone: Stone = colorStr == "black" ? .black : .white
                 if moveStr.lowercased() == "pass" {
                     _ = board.playPass(stone: stone)
-                    lastOpponentMoveWasPass = true
+                    lastPlayPassColor = stone
                     return "= \n\n"
                 } else {
-                    lastOpponentMoveWasPass = false
+                    lastPlayPassColor = nil
                     if let point = parseMove(moveStr) {
                         if board.playMove(at: point, stone: stone) {
                             return "= \n\n"
@@ -145,7 +145,7 @@ public class GTPHandler {
                     }
 
                     // Friendly pass: if opponent just passed and passing is safe, pass back
-                    if friendlyPassEnabled && lastOpponentMoveWasPass {
+                    if friendlyPassEnabled, let passColor = lastPlayPassColor, passColor != stone {
                         if let passResponse = try tryFriendlyPass(stone: stone, currentOutput: postOutput) {
                             return passResponse
                         }
@@ -309,7 +309,7 @@ public class GTPHandler {
         let postPassModelOutput = try katago.predict(board: postPassBoardState, profile: profile)
 
         // Inference succeeded — consume the flag regardless of whether we pass.
-        lastOpponentMoveWasPass = false
+        lastPlayPassColor = nil
 
         // Post-process from opponent's perspective (they move next after the pass).
         let postPassOutput = postPassModelOutput.postprocess(

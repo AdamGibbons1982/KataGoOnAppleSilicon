@@ -13,6 +13,7 @@ public enum Stone: Int {
 
     /// The opposing stone color. Undefined for `.empty`.
     public var opponent: Stone {
+        precondition(self != .empty, "opponent is undefined for .empty")
         return self == .black ? .white : .black
     }
 }
