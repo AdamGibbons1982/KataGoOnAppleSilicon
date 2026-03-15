@@ -309,7 +309,8 @@ public class GTPHandler {
         let postPassBoardState = BoardState(board: postPassBoard, rules: rules)
         let postPassModelOutput = try katago.predict(board: postPassBoardState, profile: profile)
 
-        // Inference succeeded — consume the flag regardless of whether we pass.
+        // Consume the flag regardless of outcome: one evaluation per opponent pass,
+        // whether we end up passing or not.
         lastPlayPassColor = nil
 
         // Post-process from opponent's perspective (they move next after the pass).

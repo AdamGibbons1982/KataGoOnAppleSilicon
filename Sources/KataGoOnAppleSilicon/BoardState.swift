@@ -83,8 +83,8 @@ public struct BoardState {
         }
         
         let ownStone = nextPlayer
-        let oppStone: Stone = (nextPlayer == .black) ? .white : .black
-        
+        let oppStone = nextPlayer.opponent
+
         for y in 0..<19 {
             for x in 0..<19 {
                 let stone = board.stones[y][x]
@@ -202,8 +202,8 @@ public struct BoardState {
         let amountOfHistoryToTryToUse = min(maxTurnsOfHistoryToInclude, moveHistoryLen)
         
         let pla = nextPlayer
-        let opp: Stone = (nextPlayer == .black) ? .white : .black
-        
+        let opp = nextPlayer.opponent
+
         // Nested conditionals following C++ algorithm exactly
         // Move 1 ago (opponent)
         if amountOfHistoryToTryToUse >= 1 && moveHistoryLen >= 1 && moveHistory[moveHistoryLen - 1].player == opp {
@@ -276,8 +276,8 @@ public struct BoardState {
             }
         }
         
-        let opp: Stone = (nextPlayer == .black) ? .white : .black
-        
+        let opp = nextPlayer.opponent
+
         // Feature 14: Current board ladders
         // Note: We always use 2 turns of history for Chinese rules
         board.iterLadders { loc, workingMoves in
@@ -329,8 +329,8 @@ public struct BoardState {
         }
         
         let area = board.calculateArea()
-        let oppStone: Stone = (nextPlayer == .black) ? .white : .black
-        
+        let oppStone = nextPlayer.opponent
+
         for y in 0..<19 {
             for x in 0..<19 {
                 if let owner = area[y][x] {

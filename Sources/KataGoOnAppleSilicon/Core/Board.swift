@@ -13,7 +13,7 @@ public enum Stone: Int {
 
     /// The opposing stone color. Undefined for `.empty`.
     public var opponent: Stone {
-        precondition(self != .empty, "opponent is undefined for .empty")
+        assert(self != .empty, "opponent is undefined for .empty")
         return self == .black ? .white : .black
     }
 }
@@ -60,7 +60,7 @@ public class Board {
         stones[point.y][point.x] = stone
         
         // Capture opponent stones
-        let opponent = stone == .black ? Stone.white : .black
+        let opponent = stone.opponent
         var captured = false
         for neighbor in neighbors(of: point) {
             if stones[neighbor.y][neighbor.x] == opponent && liberties(of: neighbor) == 0 {
@@ -499,8 +499,8 @@ public class Board {
         
         guard let lib = liberty else { return (false, []) }
         
-        let opponent = stone == .black ? Stone.white : .black
-        
+        let opponent = stone.opponent
+
         // If attacker moves first, they play at the liberty
         if isAttackerFirst {
             // Attacker plays at liberty - this should capture if it's a ladder

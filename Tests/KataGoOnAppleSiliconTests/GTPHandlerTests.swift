@@ -428,3 +428,14 @@ private func makeHandlerWithFriendlyPass(winRateDelta: Double = 0.5, leadDelta: 
     #expect(response.starts(with: "= "))
 }
 
+@Test func testFriendlyPassRejectedByTightThresholds() async throws {
+    // Negative thresholds are impossible to satisfy (abs diff >= 0 always),
+    // so the guard always rejects the pass regardless of model output.
+    let handler = makeHandlerWithFriendlyPass(winRateDelta: -1.0, leadDelta: -1.0)
+    _ = handler.handleCommand("play black pass")
+    let response = handler.handleCommand("genmove white")
+    // Even though opponent passed, thresholds reject the friendly pass.
+    #expect(response != "= pass\n\n")
+    #expect(response.starts(with: "= "))
+}
+
