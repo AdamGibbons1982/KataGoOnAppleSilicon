@@ -43,8 +43,8 @@ import Testing
 	let board = Board()
 	let boardState = BoardState(board: board)
 	let output = try katago.predict(board: boardState, profile: "AI")
-	#expect(!output.policy.isEmpty)
-	#expect(!output.ownership.isEmpty)
+	#expect(output.policy.count > 0)
+	#expect(output.ownership.count > 0)
 }
 @Test func testPredictWithInvalidModelOutputs() throws {
 	let katago = KataGoInference()
