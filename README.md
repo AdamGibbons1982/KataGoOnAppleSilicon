@@ -74,10 +74,10 @@ swift test --filter KataRawNNIntegrationTests.testKataRawNNEmptyBoard20k
 
 3. **Models**: 
    - Core ML models must be in `Sources/KataGoOnAppleSilicon/Models/Resources/`
-     - `KataGoModel19x19fp16-adam-s11165M.mlpackage` (AI model)
+     - `KataGoModel19x19fp16-s12192M.mlpackage` (AI model)
      - `KataGoModel19x19fp16m1.mlpackage` (Human SL model)
    - Binary models will be automatically downloaded by the script:
-     - AI model: `kata1-b28c512nbt-adam-s11165M-d5387M.bin.gz` (~258 MB)
+     - AI model: `kata1-b28c512nbt-s12192929536-d5655876072.bin.gz` (~258 MB)
      - Human SL model: `b18c384nbt-humanv0.bin.gz` (for 20k model)
 
 The reference generation script will:
