@@ -2,6 +2,18 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Related Repositories
+
+The Goban3D iOS/macCatalyst Go game app (our frontend) lives at:
+
+```
+/Users/adamgibbons/Developer/Goban3D
+```
+
+Goban3D will integrate KataGoOnAppleSilicon as its AI engine, acting as a GUI frontend that sends GTP commands to the KataGo inference API. See `Documentation/KataGoOnAppleSilicon.md` in the Goban3D repo for integration plans and details.
+
+When modifying the GTP interface, board coordinate systems, or profile string formats, check whether the Goban3D integration layer also needs updating. The Goban3D project has its own CLAUDE.md with further guidance.
+
 ## Project Overview
 
 **KataGoOnAppleSilicon** is a Swift package that provides Core ML-based neural network inference for KataGo, a strong Go AI engine. The project ports KataGo's input feature encoding, post-processing logic, and board algorithms from C++ to Swift, enabling AI-powered Go move analysis on Apple Silicon Macs.
@@ -42,7 +54,7 @@ Integration tests validate the Swift `kata-rawnn` command against KataGo's refer
 ### Prerequisites
 
 1. **Core ML Models**: Download from [releases](https://github.com/ChinChangYang/KataGo/releases/tag/v1.16.4-coreml1) and place in `Sources/KataGoOnAppleSilicon/Models/Resources/`:
-   - `KataGoModel19x19fp16-adam-s11165M.mlpackage` (AI model)
+   - `KataGoModel19x19fp16-s12192M.mlpackage` (AI model)
    - `KataGoModel19x19fp16m1.mlpackage` (Human SL model)
 
 2. **Build Tools**: `brew install ninja` (required for KataGo compilation)
@@ -114,7 +126,7 @@ Planes 0-8 encode current/historical board state; planes 9-13 encode pass histor
 
 ### Model Support
 
-**AI Model**: Strongest 28b network (`KataGoModel19x19fp16-adam-s11165M.mlpackage`)
+**AI Model**: Strongest 28b network (`KataGoModel19x19fp16-s12192M.mlpackage`)
 - No special preprocessing required
 - Input: spatial + global tensors
 
