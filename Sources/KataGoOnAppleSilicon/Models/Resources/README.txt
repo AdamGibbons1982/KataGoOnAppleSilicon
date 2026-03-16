@@ -1,2 +1,1 @@
-Core ML model files (.mlpackage) should be placed in this directory.
-They are not included in the repository due to their size.
+Models are downloaded separately at runtime. See CLAUDE.md for details.
