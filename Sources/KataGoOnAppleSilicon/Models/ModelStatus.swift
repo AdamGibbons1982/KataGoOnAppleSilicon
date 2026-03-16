@@ -1,20 +1,11 @@
 import Foundation
-
-/// Text-based status reporting for model operations
 public struct ModelStatus {
-    public static func reportModelLoaded(name: String, time: TimeInterval) {
-        // Status reporting disabled
-    }
-    
-    public static func reportModelLoadFailed(name: String, error: Error) {
-        // Status reporting disabled
-    }
-    
-    public static func reportInferenceCompleted(time: TimeInterval, policyCount: Int, value: Float) {
-        // Status reporting disabled
-    }
-    
-    public static func reportInferenceFailed(error: Error) {
-        // Status reporting disabled
-    }
+	public static func reportModelLoaded(name _: String, time _: TimeInterval) {
+	}
+	public static func reportModelLoadFailed(name _: String, error _: Error) {
+	}
+	public static func reportInferenceCompleted(time _: TimeInterval, policyCount _: Int, value _: Float) {
+	}
+	public static func reportInferenceFailed(error _: Error) {
+	}
 }

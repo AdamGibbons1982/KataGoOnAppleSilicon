@@ -69,9 +69,9 @@ if [ "$MODEL_TYPE" = "20k" ]; then
     HUMAN_SL_OVERRIDE="-override-config humanSLProfile=preaz_20k"
 else
     # AI model configuration (default)
-    BINARY_MODEL_URL="https://media.katagotraining.org/uploaded/networks/models/kata1/kata1-b28c512nbt-adam-s11165M-d5387M.bin.gz"
-    BINARY_MODEL_NAME="kata1-b28c512nbt-adam-s11165M-d5387M.bin.gz"
-    CORE_ML_MODEL_PATH="$PROJECT_ROOT/Sources/KataGoOnAppleSilicon/Models/Resources/KataGoModel19x19fp16-adam-s11165M.mlpackage"
+    BINARY_MODEL_URL="https://media.katagotraining.org/uploaded/networks/models/kata1/kata1-b28c512nbt-s12192929536-d5655876072.bin.gz"
+    BINARY_MODEL_NAME="kata1-b28c512nbt-s12192929536-d5655876072.bin.gz"
+    CORE_ML_MODEL_PATH="$PROJECT_ROOT/Sources/KataGoOnAppleSilicon/Models/Resources/KataGoModel19x19fp16-s12192M.mlpackage"
     REFERENCE_FILE_SUFFIX=""
     HUMAN_SL_OVERRIDE=""
 fi

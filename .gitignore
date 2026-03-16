@@ -13,8 +13,7 @@ merged.profdata
 # Logs
 gtp_logs/
 
-# Large model files (download separately from releases)
-Sources/KataGoOnAppleSilicon/Models/Resources/*.mlpackage/
+# Large model files — tracked in git (required for Xcode Cloud builds)
 
 # Reference output files (generated artifacts)
 Tests/KataGoOnAppleSiliconIntegrationTests/ReferenceOutputs/*.txt
