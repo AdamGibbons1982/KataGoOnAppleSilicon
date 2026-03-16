@@ -63,123 +63,131 @@ public class GTPHandler {
         friendlyPassMinimumTurn = minimumTurn
     }
 
+    private func successResponse(_ value: String = "") -> String {
+        return value.isEmpty ? "= \n\n" : "= \(value)\n\n"
+    }
+
+    private func errorResponse(_ message: String) -> String {
+        return "? \(message)\n\n"
+    }
+
     /// Process a GTP command and return response
     public func handleCommand(_ command: String) -> String {
         let parts = command.split(separator: " ").map { String($0) }
-        guard !parts.isEmpty else { return "? \n\n" }
-        
+        guard !parts.isEmpty else { return errorResponse("") }
+
         let cmd = parts[0]
         switch cmd {
-        case "protocol_version":
-            return "= 2\n\n"
-        case "name":
-            return "= KataGoOnAppleSilicon\n\n"
-        case "version":
-            return "= 1.0\n\n"
-        case "known_command":
-            return parts.count > 1 && knownCommands.contains(parts[1]) ? "= true\n\n" : "= false\n\n"
-        case "list_commands":
-            return "= " + knownCommands.joined(separator: " ") + "\n\n"
-        case "boardsize":
-            return "= \n\n"  // Assume 19x19
+        case "protocol_version":   return successResponse("2")
+        case "name":               return successResponse("KataGoOnAppleSilicon")
+        case "version":            return successResponse("1.0")
+        case "known_command":      return parts.count > 1 && knownCommands.contains(parts[1])
+                                       ? successResponse("true") : successResponse("false")
+        case "list_commands":      return successResponse(knownCommands.joined(separator: " "))
+        case "boardsize":          return successResponse()  // Assume 19x19
         case "clear_board":
             board = Board()
             consecutiveBehindCount = [.black: 0, .white: 0]
             lastPlayPassColor = nil
-            return "= \n\n"
-        case "komi":
-            // Set komi, but placeholder
-            return "= \n\n"
-        case "play":
-            if parts.count >= 3 {
-                let colorStr = parts[1]
-                let moveStr = parts[2]
-                let stone: Stone = colorStr == "black" ? .black : .white
-                if moveStr.lowercased() == "pass" {
-                    _ = board.playPass(stone: stone)
-                    lastPlayPassColor = stone
-                    return "= \n\n"
+            return successResponse()
+        case "komi":               return successResponse()  // Set komi, but placeholder
+        case "play":               return handlePlay(parts: parts)
+        case "kata-set-rules":     return handleKataSetRules(parts: parts)
+        case "genmove":            return handleGenmove(parts: parts)
+        case "quit":               return successResponse()
+        default:                   return errorResponse("unknown command")
+        }
+    }
+
+    private func handlePlay(parts: [String]) -> String {
+        if parts.count >= 3 {
+            let colorStr = parts[1]
+            let moveStr = parts[2]
+            let stone: Stone = colorStr == "black" ? .black : .white
+            if moveStr.lowercased() == "pass" {
+                _ = board.playPass(stone: stone)
+                lastPlayPassColor = stone
+                return successResponse()
+            } else {
+                lastPlayPassColor = nil
+                if let point = parseMove(moveStr) {
+                    if board.playMove(at: point, stone: stone) {
+                        return successResponse()
+                    } else {
+                        return errorResponse("illegal move")
+                    }
                 } else {
-                    lastPlayPassColor = nil
-                    if let point = parseMove(moveStr) {
-                        if board.playMove(at: point, stone: stone) {
-                            return "= \n\n"
-                        } else {
-                            return "? illegal move\n\n"
-                        }
-                    } else {
-                        return "? syntax error\n\n"
-                    }
+                    return errorResponse("syntax error")
                 }
-            } else {
-                return "? syntax error\n\n"
             }
-        case "kata-set-rules":
-            if parts.count < 2 {
-                return "? Expected at least one argument for kata-set-rules\n\n"
-            }
-            // Join all arguments (skip command name at index 0)
-            let preset = parts[1...].joined(separator: " ").trimmingCharacters(in: .whitespaces).lowercased()
-            if preset == "chinese" {
-                rules = .chineseRules
-                return "= \n\n"
-            } else {
-                return "? Unknown rules '\(preset)'\n\n"
-            }
-        case "genmove":
-            if parts.count >= 2 {
-                let colorStr = parts[1]
-                let stone: Stone = colorStr == "black" ? .black : .white
-                do {
-                    let boardState = BoardState(board: board, rules: rules)  // Use actual board and stored rules
-                    let output = try katago.predict(board: boardState, profile: profile)  // Use configured profile
+        } else {
+            return errorResponse("syntax error")
+        }
+    }
 
-                    // Resign logic
-                    // postprocess() swaps win/loss for .black, so whiteWinProb == current player's win rate.
-                    let postOutput = output.postprocess(board: board, nextPlayer: stone)
-                    let currentPlayerWinRate = postOutput.whiteWinProb
-                    if currentPlayerWinRate < resignWinRateThreshold {
-                        let count = consecutiveBehindCount[stone, default: 0] + 1
-                        consecutiveBehindCount[stone] = count
-                        if count >= resignConsecutiveMoveThreshold {
-                            // Counter resets so the engine must accumulate a new streak if the game continues.
-                            consecutiveBehindCount[stone] = 0
-                            lastPlayPassColor = nil
-                            return "= resign\n\n"
-                        }
-                    } else {
+    private func handleKataSetRules(parts: [String]) -> String {
+        if parts.count < 2 {
+            return errorResponse("Expected at least one argument for kata-set-rules")
+        }
+        // Join all arguments (skip command name at index 0)
+        let preset = parts[1...].joined(separator: " ").trimmingCharacters(in: .whitespaces).lowercased()
+        if preset == "chinese" {
+            rules = .chineseRules
+            return successResponse()
+        } else {
+            return errorResponse("Unknown rules '\(preset)'")
+        }
+    }
+
+    private func handleGenmove(parts: [String]) -> String {
+        if parts.count >= 2 {
+            let colorStr = parts[1]
+            let stone: Stone = colorStr == "black" ? .black : .white
+            do {
+                let boardState = BoardState(board: board, rules: rules)  // Use actual board and stored rules
+                let output = try katago.predict(board: boardState, profile: profile)  // Use configured profile
+
+                // Resign logic
+                // postprocess() swaps win/loss for .black, so whiteWinProb == current player's win rate.
+                let postOutput = output.postprocess(board: board, nextPlayer: stone)
+                let currentPlayerWinRate = postOutput.whiteWinProb
+                if currentPlayerWinRate < resignWinRateThreshold {
+                    let count = consecutiveBehindCount[stone, default: 0] + 1
+                    consecutiveBehindCount[stone] = count
+                    if count >= resignConsecutiveMoveThreshold {
+                        // Counter resets so the engine must accumulate a new streak if the game continues.
                         consecutiveBehindCount[stone] = 0
+                        lastPlayPassColor = nil
+                        return successResponse("resign")
                     }
-
-                    // Friendly pass: if opponent just passed and passing is safe, pass back
-                    if friendlyPassEnabled, let passColor = lastPlayPassColor, passColor != stone {
-                        if let passResponse = try tryFriendlyPass(stone: stone, currentOutput: postOutput) {
-                            return passResponse
-                        }
-                    }
-
-                    let move = selectMove(from: output.policy, greedy: false)
-
-                    // Play the generated move on the board
-                    if let point = parseMove(move) {
-                        if board.playMove(at: point, stone: stone) {
-                            return "= \(move)\n\n"
-                        } else {
-                            return "? illegal move: \(move)\n\n"
-                        }
-                    } else {
-                        return "? failed to parse generated move: \(move)\n\n"
-                    }
-                } catch {
-                    return "? \(error.localizedDescription)\n\n"
+                } else {
+                    consecutiveBehindCount[stone] = 0
                 }
-            } else {
-                return "? syntax error\n\n"
+
+                // Friendly pass: if opponent just passed and passing is safe, pass back
+                if friendlyPassEnabled, let passColor = lastPlayPassColor, passColor != stone {
+                    if let passResponse = try tryFriendlyPass(stone: stone, currentOutput: postOutput) {
+                        return passResponse
+                    }
+                }
+
+                let move = selectMove(from: output.policy, greedy: false)
+
+                // Play the generated move on the board
+                if let point = parseMove(move) {
+                    if board.playMove(at: point, stone: stone) {
+                        return successResponse(move)
+                    } else {
+                        return errorResponse("illegal move: \(move)")
+                    }
+                } else {
+                    return errorResponse("failed to parse generated move: \(move)")
+                }
+            } catch {
+                return errorResponse(error.localizedDescription)
             }
-        case "quit":
-            return "= \n\n"
-        default:
-            return "? unknown command\n\n"
+        } else {
+            return errorResponse("syntax error")
         }
     }
     
@@ -344,6 +352,6 @@ public class GTPHandler {
 
         // Safe to pass: apply to the live board and return GTP response.
         _ = board.playPass(stone: stone)
-        return "= pass\n\n"
+        return successResponse("pass")
     }
 }
