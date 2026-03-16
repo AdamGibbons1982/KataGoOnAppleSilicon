@@ -3,24 +3,21 @@ import Foundation
 public class ModelLoader {
 	public func loadModel(name: String) throws -> MLModel {
 		let startTime = Date()
-		guard let url = findModel(name: name) else {
-			throw KataGoError.modelNotFound(name)
+		// Xcode compiles .mlpackage into .mlmodelc at build time — load directly
+		if let url = Bundle.main.url(forResource: name, withExtension: "mlmodelc") {
+			let model = try MLModel(contentsOf: url)
+			let loadTime = Date().timeIntervalSince(startTime)
+			ModelStatus.reportModelLoaded(name: name, time: loadTime)
+			return model
 		}
-		let compiledURL = try MLModel.compileModel(at: url)
-		let model = try MLModel(contentsOf: compiledURL)
-		let loadTime = Date().timeIntervalSince(startTime)
-		ModelStatus.reportModelLoaded(name: name, time: loadTime)
-		return model
-	}
-	private func findModel(name: String) -> URL? {
-		// Try the host app bundle first (models bundled in the app target)
-		if let url = Bundle.main.url(forResource: name, withExtension: "mlpackage") {
-			return url
-		}
-		// Fall back to the SPM resource bundle (for standalone package testing)
+		// Fall back to uncompiled .mlpackage (SPM resource bundle for standalone testing)
 		if let url = Bundle.module.url(forResource: name, withExtension: "mlpackage", subdirectory: "Resources") {
-			return url
+			let compiledURL = try MLModel.compileModel(at: url)
+			let model = try MLModel(contentsOf: compiledURL)
+			let loadTime = Date().timeIntervalSince(startTime)
+			ModelStatus.reportModelLoaded(name: name, time: loadTime)
+			return model
 		}
-		return nil
+		throw KataGoError.modelNotFound(name)
 	}
 }
