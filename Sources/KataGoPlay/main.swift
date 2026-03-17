@@ -119,6 +119,8 @@ while true {
                 moveHistory.append((aiColor, "resign"))
                 print("AI (\(aiName)) resigns. \(humanName) wins!")
                 renderBoardFromGTP(gtp, lastMove: coord)
+                saveSGF(moveHistory: moveHistory, komi: setup.komi)
+                exit(0)
             } else {
                 moveHistory.append((aiColor, aiMove))
                 lastAIMove = aiMove
