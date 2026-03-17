@@ -94,6 +94,8 @@ public class GTPHandler {
         case "play":               return handlePlay(parts: parts)
         case "kata-set-rules":     return handleKataSetRules(parts: parts)
         case "genmove":            return handleGenmove(parts: parts)
+        case "showboard":          return handleShowboard()
+        case "kata-rawnn":         return handleKataRawNN(parts: parts)
         case "quit":               return successResponse()
         default:                   return errorResponse("unknown command")
         }
@@ -144,7 +146,7 @@ public class GTPHandler {
             let colorStr = parts[1]
             let stone: Stone = colorStr == "black" ? .black : .white
             do {
-                let boardState = BoardState(board: board, rules: rules)  // Use actual board and stored rules
+                let boardState = BoardState(board: board, nextPlayer: stone, rules: rules)  // Use actual board and stored rules
                 let output = try katago.predict(board: boardState, profile: profile)  // Use configured profile
 
                 // Resign logic
@@ -191,7 +193,37 @@ public class GTPHandler {
         }
     }
     
-    private let knownCommands = ["protocol_version", "name", "version", "known_command", "list_commands", "boardsize", "clear_board", "komi", "play", "genmove", "kata-set-rules", "quit"]
+    private func handleShowboard() -> String {
+        var lines: [String] = []
+        for y in 0..<19 {
+            let rowNum = 19 - y
+            let prefix = rowNum < 10 ? " \(rowNum)" : "\(rowNum)"
+            let cells = (0..<19).map { x -> String in
+                switch board.stones[y][x] {
+                case .black: return "X"
+                case .white: return "O"
+                default:     return "."
+                }
+            }.joined(separator: " ")
+            lines.append("\(prefix) \(cells)")
+        }
+        return successResponse(lines.joined(separator: "\n"))
+    }
+
+    private func handleKataRawNN(parts: [String]) -> String {
+        let symmetry = Int(parts.count > 1 ? parts[1] : "0") ?? 0
+        do {
+            let boardState = BoardState(board: board, rules: rules)
+            let result = try katago.rawNN(
+                board: board, boardState: boardState,
+                profile: profile, whichSymmetry: symmetry)
+            return successResponse(result)
+        } catch {
+            return errorResponse(error.localizedDescription)
+        }
+    }
+
+    private let knownCommands = ["protocol_version", "name", "version", "known_command", "list_commands", "boardsize", "clear_board", "komi", "play", "genmove", "kata-set-rules", "showboard", "kata-rawnn", "quit"]
     
     private func parseMove(_ move: String) -> Point? {
         guard move.count >= 2 else { return nil }
@@ -341,7 +373,7 @@ public class GTPHandler {
         _ = postPassBoard.playPass(stone: stone)
 
         // Run inference with opponent to move next.
-        let postPassBoardState = BoardState(board: postPassBoard, rules: rules)
+        let postPassBoardState = BoardState(board: postPassBoard, nextPlayer: stone.opponent, rules: rules)
         let postPassModelOutput = try katago.predict(board: postPassBoardState, profile: profile)
 
         // Consume the flag regardless of outcome: one evaluation per opponent pass,
