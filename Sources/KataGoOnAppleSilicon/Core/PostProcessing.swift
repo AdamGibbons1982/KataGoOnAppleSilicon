@@ -1,38 +1,45 @@
 import Foundation
 public struct PostProcessParams: Sendable {
-	public let outputScaleMultiplier: Float
-	public let scoreMeanMultiplier: Double
-	public let scoreStdevMultiplier: Double
-	public let leadMultiplier: Double
-	public let varianceTimeMultiplier: Double
-	public let shorttermValueErrorMultiplier: Double
-	public let shorttermScoreErrorMultiplier: Double
-	public static let `default` = Self(
-		outputScaleMultiplier: 8.0,
-		scoreMeanMultiplier: 20.0,
-		scoreStdevMultiplier: 20.0,
-		leadMultiplier: 20.0,
-		varianceTimeMultiplier: 40.0,
-		shorttermValueErrorMultiplier: 0.25,
-		shorttermScoreErrorMultiplier: 30.0
-	)
-	public init(
-		outputScaleMultiplier: Float,
-		scoreMeanMultiplier: Double,
-		scoreStdevMultiplier: Double,
-		leadMultiplier: Double,
-		varianceTimeMultiplier: Double,
-		shorttermValueErrorMultiplier: Double,
-		shorttermScoreErrorMultiplier: Double
-	) {
-		self.outputScaleMultiplier = outputScaleMultiplier
-		self.scoreMeanMultiplier = scoreMeanMultiplier
-		self.scoreStdevMultiplier = scoreStdevMultiplier
-		self.leadMultiplier = leadMultiplier
-		self.varianceTimeMultiplier = varianceTimeMultiplier
-		self.shorttermValueErrorMultiplier = shorttermValueErrorMultiplier
-		self.shorttermScoreErrorMultiplier = shorttermScoreErrorMultiplier
-	}
+    public let outputScaleMultiplier: Float
+    public let scoreMeanMultiplier: Double
+    public let scoreStdevMultiplier: Double
+    public let leadMultiplier: Double
+    public let varianceTimeMultiplier: Double
+    public let shorttermValueErrorMultiplier: Double
+    public let shorttermScoreErrorMultiplier: Double
+
+    /// Default parameters matching the bundled KataGo AI model
+    /// (`KataGoModel19x19fp16-adam-s11165M`, model version 15).
+    /// Key non-obvious values:
+    /// - `outputScaleMultiplier`: 1.0 (model description field; earlier code incorrectly used 8.0)
+    /// - `shorttermScoreErrorMultiplier`: 150.0 (model description field; earlier code incorrectly used 30.0)
+    public static let `default` = PostProcessParams(
+        outputScaleMultiplier: 1.0,
+        scoreMeanMultiplier: 20.0,
+        scoreStdevMultiplier: 20.0,
+        leadMultiplier: 20.0,
+        varianceTimeMultiplier: 40.0,
+        shorttermValueErrorMultiplier: 0.25,
+        shorttermScoreErrorMultiplier: 150.0
+    )
+
+    public init(
+        outputScaleMultiplier: Float,
+        scoreMeanMultiplier: Double,
+        scoreStdevMultiplier: Double,
+        leadMultiplier: Double,
+        varianceTimeMultiplier: Double,
+        shorttermValueErrorMultiplier: Double,
+        shorttermScoreErrorMultiplier: Double
+    ) {
+        self.outputScaleMultiplier = outputScaleMultiplier
+        self.scoreMeanMultiplier = scoreMeanMultiplier
+        self.scoreStdevMultiplier = scoreStdevMultiplier
+        self.leadMultiplier = leadMultiplier
+        self.varianceTimeMultiplier = varianceTimeMultiplier
+        self.shorttermValueErrorMultiplier = shorttermValueErrorMultiplier
+        self.shorttermScoreErrorMultiplier = shorttermScoreErrorMultiplier
+    }
 }
 public func softPlus(_ x: Double) -> Double {
 	if x > 40.0 {
