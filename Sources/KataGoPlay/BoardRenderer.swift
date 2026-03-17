@@ -6,6 +6,7 @@ enum ANSI {
     static let bold   = "\u{1B}[1m"
     static let cyan   = "\u{1B}[36m"
     static let yellow = "\u{1B}[33m"
+    static let red    = "\u{1B}[31m"
 }
 
 private let starPointSet: Set<String> = [
@@ -119,7 +120,7 @@ func renderBoard(
             let cell: String
             if let stone = grid[y][x] {
                 let symbol = stone == .black ? "●" : "○"
-                cell = isLastMove ? "\(ANSI.bold)\(symbol)\(ANSI.reset)" : symbol
+                cell = isLastMove ? "\(ANSI.red)\(ANSI.bold)\(symbol)\(ANSI.reset)" : symbol
             } else if let rank = hintMap[key] {
                 cell = "\(ANSI.cyan)\(rank)\(ANSI.reset)"
             } else if isStarPoint(x: x, y: y) {
