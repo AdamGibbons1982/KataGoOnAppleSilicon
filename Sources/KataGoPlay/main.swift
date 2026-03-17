@@ -23,14 +23,16 @@ func renderBoardFromGTP(
     renderBoard(grid: grid, lastMove: lastMove, hints: hints)
 }
 
-func runAnalysis(_ gtp: GTPHandler, humanName: String, aiName: String) {
+func runAnalysis(_ gtp: GTPHandler, humanName: String, aiName: String,
+                 currentIsWhite: Bool) {
     let rawResp = gtp.handleCommand("kata-rawnn 0")
     guard rawResp.hasPrefix("= ") else {
         print("(analysis unavailable)")
         return
     }
     let parsed = parseRawNN(rawResp)
-    printSummary(parsed, currentPlayerName: humanName, opponentName: aiName)
+    printSummary(parsed, currentPlayerName: humanName, opponentName: aiName,
+                 currentIsWhite: currentIsWhite)
 }
 
 // MARK: - Setup
@@ -79,7 +81,8 @@ if humanColor == .white {
     }
 }
 
-runAnalysis(gtp, humanName: humanName, aiName: aiName)
+runAnalysis(gtp, humanName: humanName, aiName: aiName,
+            currentIsWhite: humanColor == .white)
 print()
 
 // MARK: - Game loop
@@ -121,7 +124,8 @@ while true {
                 lastAIMove = aiMove
                 print("AI plays: \(aiMove)")
                 renderBoardFromGTP(gtp, lastMove: aiMove)
-                runAnalysis(gtp, humanName: humanName, aiName: aiName)
+                runAnalysis(gtp, humanName: humanName, aiName: aiName,
+                currentIsWhite: humanColor == .white)
                 print()
                 print(helpText)
             }
@@ -139,7 +143,8 @@ while true {
             if aiMove.lowercased() != "pass" { lastAIMove = aiMove }
             print("AI plays: \(aiMove)")
             renderBoardFromGTP(gtp, lastMove: aiMove == "pass" ? nil : aiMove)
-            runAnalysis(gtp, humanName: humanName, aiName: aiName)
+            runAnalysis(gtp, humanName: humanName, aiName: aiName,
+                currentIsWhite: humanColor == .white)
             print()
             print(helpText)
         }
@@ -165,7 +170,8 @@ while true {
             let hints = topMoves(parsed)
             renderBoardFromGTP(gtp, lastMove: lastAIMove, hints: hints)
             print()
-            printDetailedAnalysis(parsed, currentPlayerName: humanName, opponentName: aiName)
+            printDetailedAnalysis(parsed, currentPlayerName: humanName, opponentName: aiName,
+                                  currentIsWhite: humanColor == .white)
         } else {
             print("Analysis unavailable.")
         }

@@ -126,10 +126,11 @@ func topMoves(_ result: RawNNResult, count: Int = 5) -> [(coord: String, prob: D
 func printSummary(
     _ result: RawNNResult,
     currentPlayerName: String,
-    opponentName: String
+    opponentName: String,
+    currentIsWhite: Bool
 ) {
-    let currentWin = result.whiteWin
-    let opponentWin = result.whiteLoss
+    let currentWin  = currentIsWhite ? result.whiteWin  : result.whiteLoss
+    let opponentWin = currentIsWhite ? result.whiteLoss : result.whiteWin
 
     let barWidth = 30
     let filledCount = max(0, min(barWidth, Int(currentWin * Double(barWidth))))
@@ -139,7 +140,7 @@ func printSummary(
     let oppPct = Int((opponentWin * 100).rounded())
     print("[\(filled)\(empty)] \(currentPlayerName) \(curPct)% | \(opponentName) \(oppPct)%")
 
-    let lead = result.whiteLead
+    let lead = currentIsWhite ? result.whiteLead : -result.whiteLead
     let err  = result.shorttermScoreError
     let leader = lead >= 0 ? currentPlayerName : opponentName
     let absLead = abs(lead)
@@ -156,9 +157,11 @@ func printSummary(
 func printDetailedAnalysis(
     _ result: RawNNResult,
     currentPlayerName: String,
-    opponentName: String
+    opponentName: String,
+    currentIsWhite: Bool
 ) {
-    printSummary(result, currentPlayerName: currentPlayerName, opponentName: opponentName)
+    printSummary(result, currentPlayerName: currentPlayerName, opponentName: opponentName,
+                 currentIsWhite: currentIsWhite)
 
     guard !result.ownershipRows.isEmpty else { return }
 
@@ -170,8 +173,10 @@ func printDetailedAnalysis(
         let rowNum = 19 - yi
         let prefix = rowNum < 10 ? " \(rowNum)" : "\(rowNum)"
         let cells = row.map { val -> String in
+            // val >= 0 always means White territory from the model.
+            let isCurrentTerritory = currentIsWhite ? (val >= 0) : (val < 0)
             let absVal = abs(val)
-            if val >= 0 {
+            if isCurrentTerritory {
                 if absVal > 0.75 { return "█" }
                 if absVal > 0.50 { return "▓" }
                 if absVal > 0.25 { return "▒" }
