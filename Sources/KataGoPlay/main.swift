@@ -119,6 +119,9 @@ while true {
                 moveHistory.append((aiColor, "resign"))
                 print("AI (\(aiName)) resigns. \(humanName) wins!")
                 renderBoardFromGTP(gtp, lastMove: coord)
+                if let score = extractGTPValue(gtp.handleCommand("final_score")) {
+                    print("Final score: \(score)")
+                }
                 saveSGF(moveHistory: moveHistory, komi: setup.komi)
                 exit(0)
             } else {
@@ -147,6 +150,9 @@ while true {
             renderBoardFromGTP(gtp, lastMove: aiMove == "pass" ? nil : aiMove)
             if aiMove.lowercased() == "pass" {
                 print("Both players passed. Game over.")
+                if let score = extractGTPValue(gtp.handleCommand("final_score")) {
+                    print("Final score: \(score)")
+                }
                 saveSGF(moveHistory: moveHistory, komi: setup.komi)
                 exit(0)
             }
