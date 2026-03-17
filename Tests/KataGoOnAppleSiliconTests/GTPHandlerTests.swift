@@ -453,3 +453,32 @@ private func makeHandlerWithFriendlyPass(
     #expect(response.starts(with: "= "))
 }
 
+// MARK: - final_score Tests
+
+@Test func testFinalScoreKnownCommand() async throws {
+    let katago = KataGoInference()
+    let handler = GTPHandler(katago: katago)
+    #expect(handler.handleCommand("known_command final_score") == "= true\n\n")
+}
+
+@Test func testFinalScoreResponseFormat() async throws {
+    let katago = KataGoInference()
+    katago.setModel(MockModelWithValidOutputs(targetX: 0, targetY: 0), for: "AI")
+    let handler = GTPHandler(katago: katago)
+    let response = handler.handleCommand("final_score")
+    // Mock model has no out_miscvalue, so whiteLead = 0.0
+    // round(0.0 + 0.5) - 0.5 = 0.5 → "W+0.5"
+    #expect(response == "= W+0.5\n\n")
+}
+
+@Test func testFinalScoreAlwaysUsesAIModel() async throws {
+    let katago = KataGoInference()
+    katago.setModel(MockModelWithValidOutputs(targetX: 0, targetY: 0), for: "AI")
+    // No human SL model loaded
+    let handler = GTPHandler(katago: katago)
+    handler.setProfile("20k")  // Human SL profile active
+    let response = handler.handleCommand("final_score")
+    // Must succeed using AI model, not fail because human SL model is missing
+    #expect(response.starts(with: "= "))
+}
+

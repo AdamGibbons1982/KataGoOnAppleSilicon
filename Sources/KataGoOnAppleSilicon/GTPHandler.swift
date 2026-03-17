@@ -96,6 +96,7 @@ public class GTPHandler {
         case "genmove":            return handleGenmove(parts: parts)
         case "showboard":          return handleShowboard()
         case "kata-rawnn":         return handleKataRawNN(parts: parts)
+        case "final_score":        return handleFinalScore()
         case "quit":               return successResponse()
         default:                   return errorResponse("unknown command")
         }
@@ -224,7 +225,29 @@ public class GTPHandler {
         }
     }
 
-    private let knownCommands = ["protocol_version", "name", "version", "known_command", "list_commands", "boardsize", "clear_board", "komi", "play", "genmove", "kata-set-rules", "showboard", "kata-rawnn", "quit"]
+    private func handleFinalScore() -> String {
+        do {
+            let nextPlayer: Stone = board.turnNumber % 2 == 0 ? .black : .white
+            let boardState = BoardState(board: board, nextPlayer: nextPlayer, rules: rules)
+            let output = try katago.predict(board: boardState, profile: "AI")
+            let postOutput = output.postprocess(board: board, nextPlayer: nextPlayer)
+            // whiteLead is White's absolute lead (positive = White ahead)
+            // Round to nearest 0.5 (area scoring with 7.5 komi gives half-integer results)
+            let lead = postOutput.whiteLead
+            let roundedLead = Foundation.round(lead + 0.5) - 0.5
+            if roundedLead > 0 {
+                return successResponse(String(format: "W+%.1f", roundedLead))
+            } else if roundedLead < 0 {
+                return successResponse(String(format: "B+%.1f", -roundedLead))
+            } else {
+                return successResponse("0")
+            }
+        } catch {
+            return errorResponse(error.localizedDescription)
+        }
+    }
+
+    private let knownCommands = ["protocol_version", "name", "version", "known_command", "list_commands", "boardsize", "clear_board", "komi", "play", "genmove", "kata-set-rules", "showboard", "kata-rawnn", "final_score", "quit"]
     
     private func parseMove(_ move: String) -> Point? {
         guard move.count >= 2 else { return nil }
