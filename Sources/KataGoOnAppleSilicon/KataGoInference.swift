@@ -152,7 +152,8 @@ public class KataGoInference {
             guard let policy = prediction.featureValue(for: "output_policy")?.multiArrayValue,
                   let valueArray = prediction.featureValue(for: "out_value")?.multiArrayValue,
                   let ownership = prediction.featureValue(for: "out_ownership")?.multiArrayValue else {
-                throw KataGoError.inferenceFailed("Invalid model outputs")
+                let available = prediction.featureNames.joined(separator: ", ")
+                throw KataGoError.inferenceFailed("Invalid model outputs. Available: \(available)")
             }
             
             // Extract optional misc value arrays
