@@ -162,8 +162,8 @@ public class KataGoInference {
               let ownership = prediction.featureValue(for: "value_ownership_conv")?.multiArrayValue else {
             throw KataGoError.inferenceFailed("Invalid model outputs (new naming)")
         }
-        print("[KataGoInference] value_v3_bias shape: \(valueArray.shape), count: \(valueArray.count)")
-        print("[KataGoInference] all outputs: \(prediction.featureNames.sorted())")
+        let sv3 = prediction.featureValue(for: "value_sv3_bias")?.multiArrayValue
+        print("[KataGoInference] value_sv3_bias shape: \(sv3?.shape ?? []), count: \(sv3?.count ?? 0), values: \((0..<min(sv3?.count ?? 0, 6)).map { sv3![$0].floatValue })")
         // Combine policy_p2_conv [1,2,19,19] and policy_pass [1,2] into [1,6,362]
         let policy = try MLMultiArray(shape: [1, 6, 362], dataType: .float32)
         for i in 0..<policy.count { policy[i] = 0.0 }
@@ -174,10 +174,9 @@ public class KataGoInference {
             }
         }
         policy[[0, 0, 361]] = policyPass[[0, 0]]
-        // Synthesize miscValueArray [1,10] from value_sv3_bias [1,6]
+        // Synthesize miscValueArray [1,10] from value_sv3_bias
         let miscValueArray = try MLMultiArray(shape: [1, 10], dataType: .float32)
         for i in 0..<10 { miscValueArray[i] = 0.0 }
-        let sv3 = prediction.featureValue(for: "value_sv3_bias")?.multiArrayValue
         if let sv3 {
             miscValueArray[[0, 0]] = sv3[[0, 0]] // scoreMean
             miscValueArray[[0, 1]] = sv3[[0, 1]] // scoreMeanSq
