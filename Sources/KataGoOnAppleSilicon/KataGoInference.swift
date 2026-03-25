@@ -163,7 +163,6 @@ public class KataGoInference {
             throw KataGoError.inferenceFailed("Invalid model outputs (new naming)")
         }
         let sv3 = prediction.featureValue(for: "value_sv3_bias")?.multiArrayValue
-        print("[KataGoInference] value_sv3_bias shape: \(sv3?.shape ?? []), count: \(sv3?.count ?? 0), values: \((0..<min(sv3?.count ?? 0, 6)).map { sv3![$0].floatValue })")
         // Combine policy_p2_conv [1,2,19,19] and policy_pass [1,2] into [1,6,362]
         let policy = try MLMultiArray(shape: [1, 6, 362], dataType: .float32)
         for i in 0..<policy.count { policy[i] = 0.0 }
