@@ -162,6 +162,8 @@ public class KataGoInference {
               let ownership = prediction.featureValue(for: "value_ownership_conv")?.multiArrayValue else {
             throw KataGoError.inferenceFailed("Invalid model outputs (new naming)")
         }
+        print("[KataGoInference] value_v3_bias shape: \(valueArray.shape), count: \(valueArray.count)")
+        print("[KataGoInference] all outputs: \(prediction.featureNames.sorted())")
         // Combine policy_p2_conv [1,2,19,19] and policy_pass [1,2] into [1,6,362]
         let policy = try MLMultiArray(shape: [1, 6, 362], dataType: .float32)
         for i in 0..<policy.count { policy[i] = 0.0 }
