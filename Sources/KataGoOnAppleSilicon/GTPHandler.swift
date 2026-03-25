@@ -107,7 +107,7 @@ public class GTPHandler {
     }
 
     private func handleKomi(parts: [String]) -> String {
-        guard parts.count >= 2, let komi = Float(parts[1]) else {
+        guard parts.count >= 2, let komi = Float(parts[1]), komi.isFinite else {
             return errorResponse("syntax error")
         }
         board.komi = komi
@@ -394,7 +394,7 @@ public class GTPHandler {
         _ = postPassBoard.playPass(stone: stone)
 
         // Run inference with opponent to move next.
-        let postPassBoardState = BoardState(board: postPassBoard, nextPlayer: stone.opponent, rules: rules)
+        let postPassBoardState = BoardState(board: postPassBoard, nextPlayer: stone.opponent, komi: postPassBoard.komi, rules: rules)
         let postPassModelOutput = try katago.predict(board: postPassBoardState, profile: profile)
 
         // Consume the flag regardless of outcome: one evaluation per opponent pass,

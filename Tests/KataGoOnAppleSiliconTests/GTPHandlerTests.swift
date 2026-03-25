@@ -100,6 +100,20 @@ import CoreML
     #expect(response == "? syntax error\n\n")
 }
 
+@Test func testGTPKomiRejectsNaN() async throws {
+    let katago = KataGoInference()
+    let handler = GTPHandler(katago: katago)
+    let response = handler.handleCommand("komi nan")
+    #expect(response == "? syntax error\n\n")
+}
+
+@Test func testGTPKomiRejectsInfinity() async throws {
+    let katago = KataGoInference()
+    let handler = GTPHandler(katago: katago)
+    let response = handler.handleCommand("komi inf")
+    #expect(response == "? syntax error\n\n")
+}
+
 @Test func testGTPQuit() async throws {
     let katago = KataGoInference()
     let handler = GTPHandler(katago: katago)
