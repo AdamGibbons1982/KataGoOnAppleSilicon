@@ -212,7 +212,10 @@ public class GTPHandler {
                     if board.playMove(at: point, stone: stone) {
                         return successResponse(move)
                     } else {
-                        return errorResponse("illegal move: \(move)")
+                        // Model selected an occupied/illegal square — pass gracefully
+                        _ = board.playPass(stone: stone)
+                        lastPlayPassColor = stone
+                        return successResponse("pass")
                     }
                 } else {
                     return errorResponse("failed to parse generated move: \(move)")
