@@ -116,9 +116,16 @@ public class KataGoInference {
             let modelDescription = (model as? MLModel)?.modelDescription
             let requiresInputMeta = modelDescription?.inputDescriptionsByName["input_meta"] != nil
             
+            // Build input_mask: all-ones float32 [1, 1, boardSize, boardSize]
+            let boardSize = board.spatial.shape[2].intValue
+            let maskShape: [NSNumber] = [1, 1, NSNumber(value: boardSize), NSNumber(value: boardSize)]
+            let inputMask = try MLMultiArray(shape: maskShape, dataType: .float32)
+            for i in 0..<inputMask.count { inputMask[i] = 1.0 }
+
             var inputDict: [String: Any] = [
                 "spatial_input": board.spatial,
-                "global_input": board.global
+                "global_input": board.global,
+                "input_mask": inputMask
             ]
             
             // Add input_meta for human SL models (shape: [1, 192])
@@ -148,24 +155,18 @@ public class KataGoInference {
             let input = try MLDictionaryFeatureProvider(dictionary: inputDict)
             let prediction = try model.prediction(from: input)
             
-            // Extract outputs - model uses output_policy, out_value, out_ownership
-            guard let policy = prediction.featureValue(for: "output_policy")?.multiArrayValue,
-                  let valueArray = prediction.featureValue(for: "out_value")?.multiArrayValue,
-                  let ownership = prediction.featureValue(for: "out_ownership")?.multiArrayValue else {
+            // Extract outputs using s12192M model output names
+            guard let policy = prediction.featureValue(for: "policy_p2_conv")?.multiArrayValue,
+                  let valueArray = prediction.featureValue(for: "value_v3_bias")?.multiArrayValue,
+                  let ownership = prediction.featureValue(for: "value_ownership_conv")?.multiArrayValue else {
                 let available = prediction.featureNames.joined(separator: ", ")
                 throw KataGoError.inferenceFailed("Invalid model outputs. Available: \(available)")
             }
-            
-            // Extract optional misc value arrays
-            let miscValueArray = prediction.featureValue(for: "out_miscvalue")?.multiArrayValue
-            let moreMiscValueArray = prediction.featureValue(for: "out_moremiscvalue")?.multiArrayValue
-            
+
             let output = ModelOutput(
                 policy: policy,
                 ownership: ownership,
-                valueArray: valueArray,
-                miscValueArray: miscValueArray,
-                moreMiscValueArray: moreMiscValueArray
+                valueArray: valueArray
             )
             
             let inferenceTime = Date().timeIntervalSince(startTime)
