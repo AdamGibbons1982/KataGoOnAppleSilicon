@@ -117,8 +117,8 @@ public class KataGoInference {
             let requiresInputMeta = modelDescription?.inputDescriptionsByName["input_meta"] != nil
             
             var inputDict: [String: Any] = [
-                "input_spatial": board.spatial,
-                "input_global": board.global
+                "spatial_input": board.spatial,
+                "global_input": board.global
             ]
             
             // Add input_meta for human SL models (shape: [1, 192])
