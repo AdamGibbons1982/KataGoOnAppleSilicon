@@ -116,11 +116,16 @@ public class KataGoInference {
             let modelDescription = (model as? MLModel)?.modelDescription
             let requiresInputMeta = modelDescription?.inputDescriptionsByName["input_meta"] != nil
             
-            // Build input_mask: all-ones float32 [1, 1, boardSize, boardSize]
-            let boardSize = board.spatial.shape[2].intValue
-            let maskShape: [NSNumber] = [1, 1, NSNumber(value: boardSize), NSNumber(value: boardSize)]
+            // Build input_mask [1, 1, 19, 19]: mirrors spatial plane 0 (1.0 on-board, 0.0 off-board)
+            let gridSize = 19
+            let maskShape: [NSNumber] = [1, 1, NSNumber(value: gridSize), NSNumber(value: gridSize)]
             let inputMask = try MLMultiArray(shape: maskShape, dataType: .float32)
-            for i in 0..<inputMask.count { inputMask[i] = 1.0 }
+            for y in 0..<gridSize {
+                for x in 0..<gridSize {
+                    let idx = [0, 1, NSNumber(value: y), NSNumber(value: x)] as [NSNumber]
+                    inputMask[[0, 0, NSNumber(value: y), NSNumber(value: x)]] = board.spatial[idx]
+                }
+            }
 
             var inputDict: [String: Any] = [
                 "spatial_input": board.spatial,
