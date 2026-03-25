@@ -1,53 +1,34 @@
 import CoreML
 import Foundation
-
-/// Protocol for model inference - enables mocking in tests
 public protocol ModelProtocol {
     func prediction(from input: MLFeatureProvider) throws -> MLFeatureProvider
 }
-
-/// Make MLModel conform to ModelProtocol
 extension MLModel: ModelProtocol {}
-
-/// Main class for KataGo inference
 public class KataGoInference {
     private let modelLoader = ModelLoader()
-
-    // Store only two actual models to avoid duplication
     private var aiModel: (any ModelProtocol)?
     private var humanSLModel: (any ModelProtocol)?
 
     public init() {}
-    
-    /// Check if a profile string represents a valid human SL profile (1d-9d or 1k-20k)
+
     private func isHumanSLProfile(_ profile: String) -> Bool {
-        // Match pattern: number followed by 'd' or 'k'
         guard profile.range(of: #"^(\d+)([kd])$"#, options: .regularExpression) != nil else {
             return false
         }
-        
-        // Extract the number and suffix
         guard let suffix = profile.last, (suffix == "d" || suffix == "k") else {
             return false
         }
-        
         let numberPart = String(profile.dropLast())
         guard let number = Int(numberPart) else {
             return false
         }
-        
-        // Validate ranges: 1-9 for dan (d), 1-20 for kyu (k)
         if suffix == "d" {
             return number >= 1 && number <= 9
-        } else { // suffix == "k"
+        } else {
             return number >= 1 && number <= 20
         }
     }
 
-    /// Get the appropriate model for a given profile
-    /// - Parameter profile: Profile name (e.g., "AI", "20k", "5d")
-    /// - Returns: The model instance for this profile
-    /// - Throws: KataGoError.modelNotFound if model not loaded
     private func getModel(for profile: String) throws -> any ModelProtocol {
         if profile == "AI" {
             guard let model = aiModel else {
@@ -60,8 +41,6 @@ public class KataGoInference {
             }
             return model
         } else {
-            // For testing: treat unknown profiles as AI model
-            // This maintains backward compatibility with tests that use arbitrary profile names
             guard let model = aiModel else {
                 throw KataGoError.modelNotFound("AI model not loaded. Call loadModel(for: \"AI\") first.")
             }
@@ -69,163 +48,177 @@ public class KataGoInference {
         }
     }
 
-    /// Inject a model for testing purposes
     internal func setModel(_ model: any ModelProtocol, for profile: String) {
         if profile == "AI" {
             aiModel = model
         } else if isHumanSLProfile(profile) {
             humanSLModel = model
         } else {
-            // For testing: treat unknown profiles as AI model
-            // This maintains backward compatibility with tests that use arbitrary profile names
             aiModel = model
         }
     }
-    
-    /// Load a model for a specific profile
+
     public func loadModel(for profile: String) throws {
         if profile == "AI" {
-            // Only load if not already loaded
             if aiModel == nil {
-                let modelName = "KataGoModel19x19fp16-s12192M"  // Strongest 28b model
+                let modelName = "KataGoModel19x19fp16-s12192M"
                 aiModel = try modelLoader.loadModel(name: modelName)
             }
         } else if isHumanSLProfile(profile) {
-            // Only load if not already loaded
             if humanSLModel == nil {
-                let modelName = "KataGoModel19x19fp16m1"  // Human SL model
+                let modelName = "KataGoModel19x19fp16m1"
                 humanSLModel = try modelLoader.loadModel(name: modelName)
             }
         } else {
             throw KataGoError.unsupportedProfile(profile)
         }
     }
-    
-    /// Perform inference on the given board state
-    /// - Parameters:
-    ///   - board: BoardState with input features
-    ///   - profile: Model profile to use
-    ///   - nextPlayer: The player to move next (required for human SL models, defaults to .black)
+
     public func predict(board: BoardState, profile: String, nextPlayer: Stone = .black) throws -> ModelOutput {
         let model = try getModel(for: profile)
-
         let startTime = Date()
-        
+
         do {
-            // Check if model requires input_meta (human SL models)
             let modelDescription = (model as? MLModel)?.modelDescription
-            let requiresInputMeta = modelDescription?.inputDescriptionsByName["input_meta"] != nil
-            
-            // Build input_mask [1, 1, 19, 19]: mirrors spatial plane 0 (1.0 on-board, 0.0 off-board)
-            let gridSize = 19
-            let maskShape: [NSNumber] = [1, 1, NSNumber(value: gridSize), NSNumber(value: gridSize)]
-            let inputMask = try MLMultiArray(shape: maskShape, dataType: .float32)
-            for y in 0..<gridSize {
-                for x in 0..<gridSize {
-                    let idx = [0, 1, NSNumber(value: y), NSNumber(value: x)] as [NSNumber]
-                    inputMask[[0, 0, NSNumber(value: y), NSNumber(value: x)]] = board.spatial[idx]
+            let usesNewNaming = modelDescription?.inputDescriptionsByName["spatial_input"] != nil
+
+            let inputDict: [String: Any]
+            if usesNewNaming {
+                let inputMask = try MLMultiArray(shape: [1, 1, 19, 19], dataType: .float32)
+                for i in 0..<(19 * 19) { inputMask[i] = 1.0 }
+                inputDict = [
+                    "spatial_input": board.spatial,
+                    "global_input": board.global,
+                    "input_mask": inputMask
+                ]
+            } else {
+                var dict: [String: Any] = [
+                    "input_spatial": board.spatial,
+                    "input_global": board.global
+                ]
+                let requiresInputMeta = modelDescription?.inputDescriptionsByName["input_meta"] != nil
+                if requiresInputMeta {
+                    let profileName: String
+                    if isHumanSLProfile(profile) {
+                        profileName = "preaz_" + profile
+                    } else {
+                        profileName = "preaz_20k"
+                    }
+                    let sgfMeta = SGFMetadata.getProfile(profileName)
+                    let metadataRow = SGFMetadata.fillMetadataRow(sgfMeta, nextPlayer: nextPlayer, boardArea: 361)
+                    let inputMeta = try MLMultiArray(shape: [1, 192], dataType: .float16)
+                    for i in 0..<192 {
+                        inputMeta[i] = NSNumber(value: metadataRow[i])
+                    }
+                    dict["input_meta"] = inputMeta
                 }
+                inputDict = dict
             }
 
-            var inputDict: [String: Any] = [
-                "spatial_input": board.spatial,
-                "global_input": board.global,
-                "input_mask": inputMask
-            ]
-            
-            // Add input_meta for human SL models (shape: [1, 192])
-            if requiresInputMeta {
-                // Generate SGFMetadata from profile name
-                let profileName: String
-                if isHumanSLProfile(profile) {
-                    // Construct profile name as "preaz_" + profile (e.g., "preaz_1k", "preaz_9d")
-                    profileName = "preaz_" + profile
-                } else {
-                    // Default to preaz_20k for invalid profiles (backward compatibility)
-                    profileName = "preaz_20k"
-                }
-                
-                let sgfMeta = SGFMetadata.getProfile(profileName)
-                let metadataRow = SGFMetadata.fillMetadataRow(sgfMeta, nextPlayer: nextPlayer, boardArea: 361) // 19x19 = 361
-                
-                // Convert to MLMultiArray
-                let inputMetaShape: [NSNumber] = [1, 192]
-                let inputMeta = try MLMultiArray(shape: inputMetaShape, dataType: .float16)
-                for i in 0..<192 {
-                    inputMeta[i] = NSNumber(value: metadataRow[i])
-                }
-                inputDict["input_meta"] = inputMeta
-            }
-            
             let input = try MLDictionaryFeatureProvider(dictionary: inputDict)
             let prediction = try model.prediction(from: input)
-            
-            // Extract outputs using s12192M model output names
-            guard let policy = prediction.featureValue(for: "policy_p2_conv")?.multiArrayValue,
-                  let valueArray = prediction.featureValue(for: "value_v3_bias")?.multiArrayValue,
-                  let ownership = prediction.featureValue(for: "value_ownership_conv")?.multiArrayValue else {
-                let available = prediction.featureNames.joined(separator: ", ")
-                throw KataGoError.inferenceFailed("Invalid model outputs. Available: \(available)")
+
+            let output: ModelOutput
+            if usesNewNaming {
+                output = try extractNewModelOutput(from: prediction)
+            } else {
+                output = try extractOldModelOutput(from: prediction)
             }
 
-            let output = ModelOutput(
-                policy: policy,
-                ownership: ownership,
-                valueArray: valueArray
-            )
-            
             let inferenceTime = Date().timeIntervalSince(startTime)
-            ModelStatus.reportInferenceCompleted(time: inferenceTime, policyCount: Int(policy.count), value: output.whiteWin)
-            
+            ModelStatus.reportInferenceCompleted(time: inferenceTime, policyCount: 362, value: output.whiteWin)
+
             return output
         } catch let kataError as KataGoError {
-            // Re-throw KataGoError without wrapping
             ModelStatus.reportInferenceFailed(error: kataError)
             throw kataError
         } catch {
-            // Wrap other errors in KataGoError
             ModelStatus.reportInferenceFailed(error: error)
             throw KataGoError.inferenceFailed(error.localizedDescription)
         }
     }
-    
-    /// Generate raw neural network output in KataGo format
-    /// - Parameters:
-    ///   - board: Current board state
-    ///   - boardState: BoardState for model input
-    ///   - profile: Model profile to use
-    ///   - whichSymmetry: Symmetry index (0-7) or 8 for all symmetries
-    ///   - policyOptimism: Optional policy optimism value (0.0-1.0), defaults to 0.0
-    ///   - useHumanModel: Whether to use human SL model (affects output format)
-    /// - Returns: Formatted string matching KataGo's kata-raw-nn output
+
+    private func extractOldModelOutput(from prediction: MLFeatureProvider) throws -> ModelOutput {
+        guard let policy = prediction.featureValue(for: "output_policy")?.multiArrayValue,
+              let valueArray = prediction.featureValue(for: "out_value")?.multiArrayValue,
+              let ownership = prediction.featureValue(for: "out_ownership")?.multiArrayValue else {
+            throw KataGoError.inferenceFailed("Invalid model outputs")
+        }
+        let miscValueArray = prediction.featureValue(for: "out_miscvalue")?.multiArrayValue
+        let moreMiscValueArray = prediction.featureValue(for: "out_moremiscvalue")?.multiArrayValue
+        return ModelOutput(
+            policy: policy,
+            ownership: ownership,
+            valueArray: valueArray,
+            miscValueArray: miscValueArray,
+            moreMiscValueArray: moreMiscValueArray
+        )
+    }
+
+    private func extractNewModelOutput(from prediction: MLFeatureProvider) throws -> ModelOutput {
+        guard let policyBoard = prediction.featureValue(for: "policy_p2_conv")?.multiArrayValue,
+              let policyPass = prediction.featureValue(for: "policy_pass")?.multiArrayValue,
+              let valueArray = prediction.featureValue(for: "value_v3_bias")?.multiArrayValue,
+              let ownership = prediction.featureValue(for: "value_ownership_conv")?.multiArrayValue else {
+            throw KataGoError.inferenceFailed("Invalid model outputs (new naming)")
+        }
+        // Combine policy_p2_conv [1,2,19,19] and policy_pass [1,2] into [1,6,362]
+        let policy = try MLMultiArray(shape: [1, 6, 362], dataType: .float32)
+        for i in 0..<policy.count { policy[i] = 0.0 }
+        for y in 0..<19 {
+            for x in 0..<19 {
+                let posIdx = y * 19 + x
+                policy[[0, 0, NSNumber(value: posIdx)]] = policyBoard[[0, 0, NSNumber(value: y), NSNumber(value: x)]]
+            }
+        }
+        policy[[0, 0, 361]] = policyPass[[0, 0]]
+        // Synthesize miscValueArray [1,10] from value_sv3_bias [1,6]
+        let miscValueArray = try MLMultiArray(shape: [1, 10], dataType: .float32)
+        for i in 0..<10 { miscValueArray[i] = 0.0 }
+        let sv3 = prediction.featureValue(for: "value_sv3_bias")?.multiArrayValue
+        if let sv3 {
+            miscValueArray[[0, 0]] = sv3[[0, 0]] // scoreMean
+            miscValueArray[[0, 1]] = sv3[[0, 1]] // scoreMeanSq
+            miscValueArray[[0, 2]] = sv3[[0, 2]] // lead
+            miscValueArray[[0, 3]] = sv3[[0, 3]] // varTimeLeft
+        }
+        // Synthesize moreMiscValueArray [1,8] from value_sv3_bias
+        let moreMiscValueArray = try MLMultiArray(shape: [1, 8], dataType: .float32)
+        for i in 0..<8 { moreMiscValueArray[i] = 0.0 }
+        if let sv3 {
+            moreMiscValueArray[[0, 0]] = sv3[[0, 4]] // shorttermWinlossError
+            moreMiscValueArray[[0, 1]] = sv3[[0, 5]] // shorttermScoreError
+        }
+        return ModelOutput(
+            policy: policy,
+            ownership: ownership,
+            valueArray: valueArray,
+            miscValueArray: miscValueArray,
+            moreMiscValueArray: moreMiscValueArray
+        )
+    }
+
     public func rawNN(
         board: Board,
         boardState: BoardState,
         profile: String,
         whichSymmetry: Int = 0,
-        policyOptimism: Float? = nil,
+        policyOptimism _: Float? = nil,
         useHumanModel: Bool = false
     ) throws -> String {
-        // Determine next player (black moves first, so turnNumber % 2 == 0 means black)
         let nextPlayer: Stone = board.turnNumber % 2 == 0 ? .black : .white
-        
-        // Get model prediction
         let output = try predict(board: boardState, profile: profile, nextPlayer: nextPlayer)
-        
-        // Post-process model outputs
         let postProcessParams = PostProcessParams.default
         let postprocessed = output.postprocess(
             board: board,
             nextPlayer: nextPlayer,
-            modelVersion: 15, // Actual model version is 15, not 8
+            modelVersion: 15,
             postProcessParams: postProcessParams
         )
-        
-        // Format output based on model type
+
         var result = ""
-        
+
         if useHumanModel {
-            // Human model format
             result += "symmetry \(whichSymmetry)\n"
             result += String(format: "whiteWin %.6f\n", postprocessed.whiteWinProb)
             result += String(format: "whiteLoss %.6f\n", postprocessed.whiteLossProb)
@@ -235,7 +228,6 @@ public class KataGoInference {
             result += String(format: "shorttermWinlossError %.3f\n", postprocessed.shorttermWinlossError)
             result += String(format: "shorttermScoreError %.3f\n", postprocessed.shorttermScoreError)
         } else {
-            // Regular model format
             result += "symmetry \(whichSymmetry)\n"
             result += String(format: "whiteWin %.6f\n", postprocessed.whiteWinProb)
             result += String(format: "whiteLoss %.6f\n", postprocessed.whiteLossProb)
@@ -247,37 +239,25 @@ public class KataGoInference {
             result += String(format: "shorttermWinlossError %.3f\n", postprocessed.shorttermWinlossError)
             result += String(format: "shorttermScoreError %.3f\n", postprocessed.shorttermScoreError)
         }
-        
-        // Format policy grid using postprocessed probabilities
+
         result += "policy\n"
-        result += formatPolicyGridFromPostprocessed(policyProbs: postprocessed.policyProbs, boardSize: board.xSize)
-
-        // Format policy pass
-        let modelPassIndex = 19 * 19  // Model always outputs 19×19+1=362 values; pass is at index 361
-        let policyPass = modelPassIndex < postprocessed.policyProbs.count && postprocessed.policyProbs[modelPassIndex] >= 0
-            ? postprocessed.policyProbs[modelPassIndex] : 0.0
+        result += formatPolicyGridFromPostprocessed(policyProbs: postprocessed.policyProbs)
+        let policyPass = postprocessed.policyProbs[361] >= 0 ? postprocessed.policyProbs[361] : 0.0
         result += String(format: "policyPass %8.6f \n", policyPass)
-
-        // Format ownership grid using postprocessed values
         result += "whiteOwnership\n"
-        result += formatOwnershipGridFromPostprocessed(ownership: postprocessed.ownership, boardSize: board.xSize)
-        
-        // Empty line after symmetry block
+        result += formatOwnershipGridFromPostprocessed(ownership: postprocessed.ownership)
         result += "\n"
-        
+
         return result
     }
-    
-    /// Format postprocessed policy grid as boardSize lines of boardSize values each
-    private func formatPolicyGridFromPostprocessed(policyProbs: [Float], boardSize: Int = 19) -> String {
+
+    private func formatPolicyGridFromPostprocessed(policyProbs: [Float]) -> String {
         var result = ""
-
-        for y in 0..<boardSize {
+        for y in 0..<19 {
             var lineValues: [String] = []
-            for x in 0..<boardSize {
-                let positionIndex = y * 19 + x  // Model output always uses 19-wide stride
+            for x in 0..<19 {
+                let positionIndex = y * 19 + x
                 let value = positionIndex < policyProbs.count ? policyProbs[positionIndex] : 0.0
-
                 if value < 0 {
                     lineValues.append("    NAN ")
                 } else {
@@ -286,20 +266,16 @@ public class KataGoInference {
             }
             result += lineValues.joined(separator: " ") + "\n"
         }
-
         return result
     }
 
-    /// Format postprocessed ownership grid as boardSize lines of boardSize values each
-    private func formatOwnershipGridFromPostprocessed(ownership: [Float], boardSize: Int = 19) -> String {
+    private func formatOwnershipGridFromPostprocessed(ownership: [Float]) -> String {
         var result = ""
-
-        for y in 0..<boardSize {
+        for y in 0..<19 {
             var lineValues: [String] = []
-            for x in 0..<boardSize {
-                let positionIndex = y * 19 + x  // Model output always uses 19-wide stride
+            for x in 0..<19 {
+                let positionIndex = y * 19 + x
                 let value = positionIndex < ownership.count ? ownership[positionIndex] : 0.0
-
                 if value.isNaN {
                     lineValues.append("     NAN ")
                 } else {
@@ -308,7 +284,6 @@ public class KataGoInference {
             }
             result += lineValues.joined(separator: " ") + "\n"
         }
-        
         return result
     }
 }
