@@ -218,7 +218,7 @@ public class GTPHandler {
                     return errorResponse("failed to parse generated move: \(move)")
                 }
             } catch {
-                return errorResponse(error.localizedDescription)
+                return errorResponse(String(describing: error))
             }
         } else {
             return errorResponse("syntax error")
@@ -252,7 +252,7 @@ public class GTPHandler {
                 profile: profile, whichSymmetry: symmetry)
             return successResponse(result)
         } catch {
-            return errorResponse(error.localizedDescription)
+            return errorResponse(String(describing: error))
         }
     }
 
@@ -274,7 +274,7 @@ public class GTPHandler {
                 return successResponse("0")
             }
         } catch {
-            return errorResponse(error.localizedDescription)
+            return errorResponse(String(describing: error))
         }
     }
 
