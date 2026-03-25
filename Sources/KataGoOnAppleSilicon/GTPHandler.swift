@@ -329,25 +329,12 @@ public class GTPHandler {
         return moveToGTP(x: lastMove.x, y: lastMove.y)
     }
 
-    private func selectMoveGreedy(from policyProbs: [Float]) -> String {
-        var maxProb: Float = 0
-        var maxIdx = -1  // -1 means pass
-
-        for i in 0..<361 {
-            let prob = policyProbs[i]
-            if prob > maxProb {
-                maxProb = prob
-                maxIdx = i
-            }
-        }
-
-        let passProb = policyProbs[GTPHandler.passPolicyIndex]
-        if passProb > maxProb {
+    func selectMoveGreedy(from policyProbs: [Float]) -> String {
+        let moves = collectMovesWithProbabilities(from: policyProbs)
+        guard let best = moves.max(by: { $0.prob < $1.prob }), best.prob > 0 else {
             return "pass"
         }
-
-        if maxIdx == -1 { return "pass" }
-        return coordinateToGTP(x: maxIdx % 19, y: maxIdx / 19)
+        return moveToGTP(x: best.x, y: best.y)
     }
 
     private func moveToGTP(x: Int, y: Int) -> String {

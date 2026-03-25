@@ -576,3 +576,52 @@ private func makeHandlerWithFriendlyPass(
     #expect(rowLines.count == 9)
 }
 
+// MARK: - selectMoveGreedy Tests
+
+@Test func testSelectMoveGreedyOn9x9IgnoresOutOfBoundsPositions() {
+    let katago = KataGoInference()
+    let handler = GTPHandler(katago: katago)
+    _ = handler.handleCommand("boardsize 9")
+
+    var policyProbs = [Float](repeating: 0.0, count: 362)
+    policyProbs[0 * 19 + 10] = 0.9  // out-of-bounds for 9x9
+    policyProbs[4 * 19 + 4] = 0.5   // in-bounds (E5)
+
+    let move = handler.selectMoveGreedy(from: policyProbs)
+    #expect(move == "E5")
+}
+
+@Test func testSelectMoveGreedyOn9x9PassWhenBest() {
+    let katago = KataGoInference()
+    let handler = GTPHandler(katago: katago)
+    _ = handler.handleCommand("boardsize 9")
+
+    var policyProbs = [Float](repeating: 0.0, count: 362)
+    policyProbs[361] = 0.8          // pass
+    policyProbs[0 * 19 + 15] = 0.9  // out-of-bounds for 9x9
+
+    let move = handler.selectMoveGreedy(from: policyProbs)
+    #expect(move == "pass")
+}
+
+@Test func testSelectMoveGreedyOn9x9AllZeroReturnsPass() {
+    let katago = KataGoInference()
+    let handler = GTPHandler(katago: katago)
+    _ = handler.handleCommand("boardsize 9")
+
+    let policyProbs = [Float](repeating: 0.0, count: 362)
+    let move = handler.selectMoveGreedy(from: policyProbs)
+    #expect(move == "pass")
+}
+
+@Test func testSelectMoveGreedyOn19x19StillWorks() {
+    let katago = KataGoInference()
+    let handler = GTPHandler(katago: katago)
+
+    var policyProbs = [Float](repeating: 0.0, count: 362)
+    policyProbs[18 * 19 + 18] = 0.7  // T1
+
+    let move = handler.selectMoveGreedy(from: policyProbs)
+    #expect(move == "T1")
+}
+
