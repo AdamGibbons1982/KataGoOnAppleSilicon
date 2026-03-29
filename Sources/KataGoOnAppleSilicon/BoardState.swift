@@ -13,10 +13,12 @@ import CoreML
 public struct BoardState {
     public let spatial: MLMultiArray  // [1,22,19,19]
     public let global: MLMultiArray   // [1,19]
-    
-    public init(spatial: MLMultiArray, global: MLMultiArray) {
+    public let boardSize: Int
+
+    public init(spatial: MLMultiArray, global: MLMultiArray, boardSize: Int = 19) {
         self.spatial = spatial
         self.global = global
+        self.boardSize = boardSize
     }
     
     /// Create from board data
@@ -27,10 +29,11 @@ public struct BoardState {
     ///   - turnNumber: Current turn number (default: 0)
     ///   - rules: Rules configuration (default: .defaultRules for backward compatibility)
     public init(board: Board, nextPlayer: Stone = .black, komi: Float = 7.5, turnNumber: Int = 0, rules: Rules = .defaultRules) {
+        self.boardSize = board.xSize
         // KataGo features: 22 spatial planes
         let spatialShape: [NSNumber] = [1, 22, 19, 19]
         self.spatial = try! MLMultiArray(shape: spatialShape, dataType: .float16)
-        
+
         // KataGo features: 19 global features
         let globalShape: [NSNumber] = [1, 19]
         self.global = try! MLMultiArray(shape: globalShape, dataType: .float16)

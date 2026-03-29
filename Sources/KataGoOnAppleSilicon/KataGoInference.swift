@@ -82,10 +82,16 @@ public class KataGoInference {
             let modelDescription = (model as? MLModel)?.modelDescription
             let usesNewNaming = modelDescription?.inputDescriptionsByName["spatial_input"] != nil
 
+            let boardSize = board.boardSize
             let inputDict: [String: Any]
             if usesNewNaming {
                 let inputMask = try MLMultiArray(shape: [1, 1, 19, 19], dataType: .float32)
-                for i in 0..<(19 * 19) { inputMask[i] = 1.0 }
+                for i in 0..<(19 * 19) { inputMask[i] = 0.0 }
+                for y in 0..<boardSize {
+                    for x in 0..<boardSize {
+                        inputMask[y * 19 + x] = 1.0
+                    }
+                }
                 inputDict = [
                     "spatial_input": board.spatial,
                     "global_input": board.global,
@@ -105,7 +111,7 @@ public class KataGoInference {
                         profileName = "preaz_20k"
                     }
                     let sgfMeta = SGFMetadata.getProfile(profileName)
-                    let metadataRow = SGFMetadata.fillMetadataRow(sgfMeta, nextPlayer: nextPlayer, boardArea: 361)
+                    let metadataRow = SGFMetadata.fillMetadataRow(sgfMeta, nextPlayer: nextPlayer, boardArea: boardSize * boardSize)
                     let inputMeta = try MLMultiArray(shape: [1, 192], dataType: .float16)
                     for i in 0..<192 {
                         inputMeta[i] = NSNumber(value: metadataRow[i])
