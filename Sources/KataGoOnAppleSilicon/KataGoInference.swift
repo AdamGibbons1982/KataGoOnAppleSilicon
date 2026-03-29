@@ -106,7 +106,7 @@ public class KataGoInference {
     ///   - board: BoardState with input features
     ///   - profile: Model profile to use
     ///   - nextPlayer: The player to move next (required for human SL models, defaults to .black)
-    public func predict(board: BoardState, profile: String, nextPlayer: Stone = .black) throws -> ModelOutput {
+    public func predict(board: BoardState, profile: String, nextPlayer: Stone = .black, boardArea: Int = 361) throws -> ModelOutput {
         let model = try getModel(for: profile)
 
         let startTime = Date()
@@ -134,7 +134,7 @@ public class KataGoInference {
                 }
                 
                 let sgfMeta = SGFMetadata.getProfile(profileName)
-                let metadataRow = SGFMetadata.fillMetadataRow(sgfMeta, nextPlayer: nextPlayer, boardArea: 361) // 19x19 = 361
+                let metadataRow = SGFMetadata.fillMetadataRow(sgfMeta, nextPlayer: nextPlayer, boardArea: boardArea)
                 
                 // Convert to MLMultiArray
                 let inputMetaShape: [NSNumber] = [1, 192]
@@ -203,7 +203,7 @@ public class KataGoInference {
         let nextPlayer: Stone = board.turnNumber % 2 == 0 ? .black : .white
         
         // Get model prediction
-        let output = try predict(board: boardState, profile: profile, nextPlayer: nextPlayer)
+        let output = try predict(board: boardState, profile: profile, nextPlayer: nextPlayer, boardArea: board.xSize * board.ySize)
         
         // Post-process model outputs
         let postProcessParams = PostProcessParams.default
