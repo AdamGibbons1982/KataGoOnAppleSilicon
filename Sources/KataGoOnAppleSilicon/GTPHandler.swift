@@ -172,7 +172,7 @@ public class GTPHandler {
             let stone: Stone = colorStr == "black" ? .black : .white
             do {
                 let boardState = BoardState(board: board, nextPlayer: stone, komi: board.komi, rules: rules)
-                let output = try katago.predict(board: boardState, profile: profile, boardArea: board.xSize * board.ySize)  // Use configured profile
+                let output = try katago.predict(board: boardState, profile: profile)  // Use configured profile
 
                 // Resign logic
                 // postprocess() swaps win/loss for .black, so whiteWinProb == current player's win rate.
@@ -263,7 +263,7 @@ public class GTPHandler {
         do {
             let nextPlayer: Stone = board.turnNumber % 2 == 0 ? .black : .white
             let boardState = BoardState(board: board, nextPlayer: nextPlayer, komi: board.komi, rules: rules)
-            let output = try katago.predict(board: boardState, profile: "AI", boardArea: board.xSize * board.ySize)
+            let output = try katago.predict(board: boardState, profile: "AI")
             let postOutput = output.postprocess(board: board, nextPlayer: nextPlayer)
             // whiteLead is White's absolute lead (positive = White ahead)
             // Round to nearest 0.5 (area scoring with 7.5 komi gives half-integer results)
@@ -398,7 +398,7 @@ public class GTPHandler {
 
         // Run inference with opponent to move next.
         let postPassBoardState = BoardState(board: postPassBoard, nextPlayer: stone.opponent, komi: postPassBoard.komi, rules: rules)
-        let postPassModelOutput = try katago.predict(board: postPassBoardState, profile: profile, boardArea: postPassBoard.xSize * postPassBoard.ySize)
+        let postPassModelOutput = try katago.predict(board: postPassBoardState, profile: profile)
 
         // Consume the flag regardless of outcome: one evaluation per opponent pass,
         // whether we end up passing or not.
