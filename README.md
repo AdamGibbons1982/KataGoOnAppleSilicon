@@ -72,7 +72,7 @@ swift test
 
 ## Integration Testing
 
-The project includes integration tests that validate the Swift `kata-raw-nn` implementation against KataGo's reference output. These tests ensure the Swift implementation produces output that exactly matches KataGo's C++ implementation.
+The project includes integration tests that validate the Swift `kata-rawnn` implementation against KataGo's reference output. These tests ensure the Swift implementation produces output that exactly matches KataGo's C++ implementation.
 
 ### Quick Start
 
@@ -174,7 +174,7 @@ This project is a Swift port of KataGo's neural network inference algorithms. Th
 - **Post-Processing**: Derived from `nneval.cpp` (value, policy, and ownership post-processing)
 - **Board Logic**: Ported from KataGo's board implementation
 
-The Swift implementation maintains compatibility with KataGo's neural network models and produces identical output for the `kata-raw-nn` command, supporting both AI models and human SL models (30 profiles: 1d–9d dan, 1k–20k kyu).
+The Swift implementation maintains compatibility with KataGo's neural network models and produces identical output for the `kata-rawnn` command, supporting both AI models and human SL models (30 profiles: 1d–9d dan, 1k–20k kyu).
 
 ## License
 

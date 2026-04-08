@@ -37,7 +37,7 @@ swift test --filter GameGeneratorTests.testGenerateGame
 
 ## Integration Testing Workflow
 
-Integration tests validate the Swift implementation against KataGo's reference output for the `kata-raw-nn` command. This ensures byte-for-byte compatibility.
+Integration tests validate the Swift `kata-rawnn` command against KataGo's reference output. This ensures byte-for-byte compatibility.
 
 ### Prerequisites
 
