@@ -1,31 +1,61 @@
 ## Features
 
-- API-only interface for GTP command handling
+- GTP engine with model-only inference (no search yet)
+- Interactive CLI application (`KataGoPlay`) for playing against the AI
+- Board sizes 2x2 to 19x19 with Chinese rules (area scoring, positional ko, no suicide)
 - Bundled Core ML models for strongest 28b and human SL networks
-- Model-only inference (no search yet)
-- 19x19 board with Chinese rules (area scoring, positional ko, no suicide)
-- Text-based status reporting for testing
+- 30 human SL profiles: 1d–9d (dan) and 1k–20k (kyu)
+- Resign logic, friendly pass mode, greedy and probabilistic move selection
+- Board rendering, real-time analysis display, and SGF export
+- GTP commands: `protocol_version`, `name`, `version`, `known_command`, `list_commands`, `boardsize`, `clear_board`, `komi`, `play`, `genmove`, `kata-set-rules`, `showboard`, `kata-rawnn`, `final_score`, `quit`
 
 ## Usage
+
+### Library API
 
 ```swift
 import KataGoOnAppleSilicon
 
-// Initialize KataGo and load models
 let katago = KataGoInference()
 try katago.loadModel(for: "AI")    // Load AI model (strongest 28b)
-try katago.loadModel(for: "20k")   // Load human SL model (20k profile)
+try katago.loadModel(for: "1d")    // Load human SL model (1d profile)
 
-// Create GTP handler
 let gtp = GTPHandler(katago: katago)
 
-// Use GTP commands (board management is handled internally)
-let response = gtp.handleCommand("genmove white")
+// Set board size and komi
+_ = gtp.handleCommand("boardsize 13")
+_ = gtp.handleCommand("komi 7.5")
+
+// Generate a move
+let response = gtp.handleCommand("genmove black")
 print(response)  // "= D4\n\n"
 
-// Switch to 20k profile if needed
-gtp.setProfile("20k")
-let response20k = gtp.handleCommand("genmove black")
+// Switch to a different human SL profile
+gtp.setProfile("5k")
+let response5k = gtp.handleCommand("genmove white")
+
+// Get estimated score
+let score = gtp.handleCommand("final_score")
+```
+
+### KataGoPlay (Interactive CLI)
+
+```bash
+swift run KataGoPlay
+```
+
+KataGoPlay provides an interactive setup flow (color, AI profile, board size, komi) and a game loop with board rendering, move highlighting, win-rate analysis, and SGF export. In-game commands:
+
+```
+<coord>           Play a move (e.g. D4)
+pass              Pass your turn
+hint              Show top suggested moves on the board
+analysis          Detailed win-rate and score analysis
+board             Redraw the board
+save              Export the game as SGF
+profile <name>    Switch AI profile (e.g. profile 3d)
+ai                Let the AI play your turn
+quit              Exit
 ```
 
 ## Requirements
@@ -144,7 +174,7 @@ This project is a Swift port of KataGo's neural network inference algorithms. Th
 - **Post-Processing**: Derived from `nneval.cpp` (value, policy, and ownership post-processing)
 - **Board Logic**: Ported from KataGo's board implementation
 
-The Swift implementation maintains compatibility with KataGo's neural network models and produces identical output for the `kata-raw-nn` command, supporting both AI models and human SL models (20k profile).
+The Swift implementation maintains compatibility with KataGo's neural network models and produces identical output for the `kata-raw-nn` command, supporting both AI models and human SL models (30 profiles: 1d–9d dan, 1k–20k kyu).
 
 ## License
 
