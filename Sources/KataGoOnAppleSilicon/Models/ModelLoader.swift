@@ -17,7 +17,7 @@ public class ModelLoader {
             return model
         }
         // Fallback: compile from .mlpackage at runtime (SPM standalone testing)
-        if let url = Bundle.module.url(forResource: name, withExtension: "mlpackage", subdirectory: "Resources") {
+        if let url = Bundle.module.url(forResource: name, withExtension: "mlpackage") {
             print("[ModelLoader] Compiling from Bundle.module: \(url.lastPathComponent)")
             let compiledURL = try MLModel.compileModel(at: url)
             let model = try MLModel(contentsOf: compiledURL, configuration: config)
