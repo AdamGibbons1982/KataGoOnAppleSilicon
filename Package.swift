@@ -2,7 +2,7 @@
 import PackageDescription
 let package = Package(
     name: "KataGoOnAppleSilicon",
-    platforms: [.macOS(.v12), .macCatalyst(.v26)],
+    platforms: [.macOS(.v12), .macCatalyst(.v26), .iOS(.v26)],
     products: [
         .library(
             name: "KataGoOnAppleSilicon",
