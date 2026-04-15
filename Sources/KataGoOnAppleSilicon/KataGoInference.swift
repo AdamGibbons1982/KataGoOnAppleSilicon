@@ -61,7 +61,7 @@ public class KataGoInference {
     public func loadModel(for profile: String) throws {
         if profile == "AI" {
             if aiModel == nil {
-                let modelName = "KataGoModel19x19fp16-s12192M"
+                let modelName = "KataGoModel19x19fp16-zhizi-b28"
                 aiModel = try modelLoader.loadModel(name: modelName)
             }
         } else if isHumanSLProfile(profile) {

@@ -7,7 +7,7 @@ import Testing
 }
 @Test func testLoadExistingModel() throws {
 	let loader = ModelLoader()
-	_ = try loader.loadModel(name: "KataGoModel19x19fp16-s12192M")
+	_ = try loader.loadModel(name: "KataGoModel19x19fp16-zhizi-b28")
 }
 @Test func testLoadNonExistingModel() throws {
 	let loader = ModelLoader()
