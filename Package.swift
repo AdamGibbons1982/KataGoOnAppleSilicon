@@ -21,7 +21,7 @@ let package = Package(
         .target(
             name: "KataGoOnAppleSilicon",
             exclude: ["InputFeatures.md"],
-            resources: [.copy("Models/Resources")]
+            resources: [.process("Models/Resources")]
         ),
         .executableTarget(
             name: "KataGoPlay",
