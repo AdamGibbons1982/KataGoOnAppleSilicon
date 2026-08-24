@@ -224,7 +224,7 @@ public class GTPHandler {
                     }
                 }
 
-                let move = selectMove(from: postOutput.policyProbs)
+                let move = selectMoveGreedy(from: postOutput.policyProbs)
 
                 // Handle pass before attempting to parse as a board coordinate
                 if move.lowercased() == "pass" {
@@ -238,7 +238,9 @@ public class GTPHandler {
                     if board.playMove(at: point, stone: stone) {
                         return successResponse(move)
                     } else {
-                        return errorResponse("illegal move: \(move)")
+                        _ = board.playPass(stone: stone)
+                        lastPlayPassColor = stone
+                        return successResponse("pass")
                     }
                 } else {
                     return errorResponse("failed to parse generated move: \(move)")

@@ -112,10 +112,32 @@ public class KataGoInference {
         let startTime = Date()
         
         do {
-            // Check if model requires input_meta (human SL models)
             let modelDescription = (model as? MLModel)?.modelDescription
+            let usesNewNaming = modelDescription?.inputDescriptionsByName["spatial_input"] != nil
+
+            if usesNewNaming {
+                let inputMask = try MLMultiArray(shape: [1, 1, 19, 19], dataType: .float32)
+                for i in 0..<(19 * 19) { inputMask[i] = 0.0 }
+                for y in 0..<board.boardSize {
+                    for x in 0..<board.boardSize {
+                        inputMask[y * 19 + x] = 1.0
+                    }
+                }
+                let maskedInput = try MLDictionaryFeatureProvider(dictionary: [
+                    "spatial_input": board.spatial,
+                    "global_input": board.global,
+                    "input_mask": inputMask
+                ])
+                let maskedPrediction = try model.prediction(from: maskedInput)
+                let maskedOutput = try extractNewModelOutput(from: maskedPrediction)
+                let maskedTime = Date().timeIntervalSince(startTime)
+                ModelStatus.reportInferenceCompleted(time: maskedTime, policyCount: Int(maskedOutput.policy.count), value: maskedOutput.whiteWin)
+                return maskedOutput
+            }
+
+            // Check if model requires input_meta (human SL models)
             let requiresInputMeta = modelDescription?.inputDescriptionsByName["input_meta"] != nil
-            
+
             var inputDict: [String: Any] = [
                 "input_spatial": board.spatial,
                 "input_global": board.global
@@ -309,4 +331,45 @@ public class KataGoInference {
         
         return result
     }
+
+    private func extractNewModelOutput(from prediction: MLFeatureProvider) throws -> ModelOutput {
+        guard let policyBoard = prediction.featureValue(for: "policy_p2_conv")?.multiArrayValue,
+              let policyPass = prediction.featureValue(for: "policy_pass")?.multiArrayValue,
+              let valueArray = prediction.featureValue(for: "value_v3_bias")?.multiArrayValue,
+              let ownership = prediction.featureValue(for: "value_ownership_conv")?.multiArrayValue else {
+            throw KataGoError.inferenceFailed("Invalid model outputs (new naming)")
+        }
+        let sv3 = prediction.featureValue(for: "value_sv3_bias")?.multiArrayValue
+        let policy = try MLMultiArray(shape: [1, 6, 362], dataType: .float32)
+        for i in 0..<policy.count { policy[i] = 0.0 }
+        for y in 0..<19 {
+            for x in 0..<19 {
+                let posIdx = y * 19 + x
+                policy[[0, 0, NSNumber(value: posIdx)]] = policyBoard[[0, 0, NSNumber(value: y), NSNumber(value: x)]]
+            }
+        }
+        policy[[0, 0, 361]] = policyPass[[0, 0]]
+        let miscValueArray = try MLMultiArray(shape: [1, 10], dataType: .float32)
+        for i in 0..<10 { miscValueArray[i] = 0.0 }
+        if let sv3 {
+            miscValueArray[[0, 0]] = sv3[[0, 0]]
+            miscValueArray[[0, 1]] = sv3[[0, 1]]
+            miscValueArray[[0, 2]] = sv3[[0, 2]]
+            miscValueArray[[0, 3]] = sv3[[0, 3]]
+        }
+        let moreMiscValueArray = try MLMultiArray(shape: [1, 8], dataType: .float32)
+        for i in 0..<8 { moreMiscValueArray[i] = 0.0 }
+        if let sv3 {
+            moreMiscValueArray[[0, 0]] = sv3[[0, 4]]
+            moreMiscValueArray[[0, 1]] = sv3[[0, 5]]
+        }
+        return ModelOutput(
+            policy: policy,
+            ownership: ownership,
+            valueArray: valueArray,
+            miscValueArray: miscValueArray,
+            moreMiscValueArray: moreMiscValueArray
+        )
+    }
+
 }
