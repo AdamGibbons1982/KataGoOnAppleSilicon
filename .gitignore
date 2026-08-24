@@ -24,3 +24,8 @@ KataGo-metal-coreml-stable/
 
 # Local git worktrees (isolated workspaces for parallel branches)
 .worktrees/
+
+# Environment files (credentials)
+.env
+.env.*
+!.env.example

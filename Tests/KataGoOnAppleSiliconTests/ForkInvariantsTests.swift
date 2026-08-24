@@ -233,3 +233,41 @@ private func packageManifest() throws -> String {
         "The human SL model name matches upstream and should stay as-is."
     )
 }
+
+// MARK: - Fork change 9: full error detail in GTP responses
+//
+// Upstream returns error.localizedDescription, which for a KataGoError prints
+// the useless "The operation couldn't be completed. (KataGoError error 0.)" —
+// the case name and its payload are both lost. On 2026-08-24 that turned a
+// one-line diagnosis (modelNotFound: <name>) into a much longer hunt.
+
+@Test func forkChange9_gtpErrorsCarryFullDetail() throws {
+    let source = try engineSource("GTPHandler.swift")
+    #expect(
+        !source.contains("errorResponse(error.localizedDescription)"),
+        """
+        Fork change 9 missing: GTP error responses must use         String(describing: error), not error.localizedDescription. The latter         renders a KataGoError as "(KataGoError error 0.)" and discards the case         and its payload, making field diagnosis far harder.
+        """
+    )
+    #expect(
+        source.contains("String(describing: error)"),
+        "Fork change 9 missing: no String(describing:) error reporting found."
+    )
+}
+
+// MARK: - Fork change 10: .env files stay out of git
+
+@Test func forkChange10_envFilesAreGitignored() throws {
+    var dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+    while dir.pathComponents.count > 1 && dir.lastPathComponent != "Tests" {
+        dir = dir.deletingLastPathComponent()
+    }
+    let root = dir.deletingLastPathComponent()
+    let ignore = try String(contentsOf: root.appendingPathComponent(".gitignore"), encoding: .utf8)
+    #expect(
+        ignore.contains(".env"),
+        """
+        Fork change 10 missing: .gitignore must exclude .env files. Upstream does         not ignore them, and a credential committed here would have to be removed         by rewriting history.
+        """
+    )
+}

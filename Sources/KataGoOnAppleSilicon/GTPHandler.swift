@@ -246,7 +246,7 @@ public class GTPHandler {
                     return errorResponse("failed to parse generated move: \(move)")
                 }
             } catch {
-                return errorResponse(error.localizedDescription)
+                return errorResponse(String(describing: error))
             }
         } else {
             return errorResponse("syntax error")
@@ -280,7 +280,7 @@ public class GTPHandler {
                 profile: profile, whichSymmetry: symmetry)
             return successResponse(result)
         } catch {
-            return errorResponse(error.localizedDescription)
+            return errorResponse(String(describing: error))
         }
     }
 
@@ -302,7 +302,7 @@ public class GTPHandler {
                 return successResponse("0")
             }
         } catch {
-            return errorResponse(error.localizedDescription)
+            return errorResponse(String(describing: error))
         }
     }
 
@@ -358,7 +358,7 @@ public class GTPHandler {
         do {
             parsed = try SGFParser.parse(text)
         } catch {
-            return errorResponse(error.localizedDescription)
+            return errorResponse(String(describing: error))
         }
 
         guard parsed.boardSize >= 2 && parsed.boardSize <= 19 else {
@@ -476,7 +476,7 @@ public class GTPHandler {
         } catch KataGoError.handicapRefused(let message) {
             return errorResponse(message)
         } catch {
-            return errorResponse(error.localizedDescription)
+            return errorResponse(String(describing: error))
         }
     }
 
