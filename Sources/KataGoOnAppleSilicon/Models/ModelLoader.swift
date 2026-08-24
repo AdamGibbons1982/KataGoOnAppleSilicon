@@ -9,13 +9,25 @@ public class ModelLoader {
     /// Load a model by name from the bundled resources
     public func loadModel(name: String) throws -> MLModel {
         let startTime = Date()
-        
+
+        let config = MLModelConfiguration()
+        config.computeUnits = .all
+
+        // A host app that bundles the model ships it as a .mlmodelc, compiled by
+        // Xcode at build time into Bundle.main.
+        if let url = Bundle.main.url(forResource: name, withExtension: "mlmodelc") {
+            let model = try MLModel(contentsOf: url, configuration: config)
+            let loadTime = Date().timeIntervalSince(startTime)
+            ModelStatus.reportModelLoaded(name: name, time: loadTime)
+            return model
+        }
+
         guard let url = Bundle.module.url(forResource: name, withExtension: "mlpackage", subdirectory: nil) else {
             throw KataGoError.modelNotFound(name)
         }
-        
+
         let compiledURL = try MLModel.compileModel(at: url)
-        let model = try MLModel(contentsOf: compiledURL)
+        let model = try MLModel(contentsOf: compiledURL, configuration: config)
         let loadTime = Date().timeIntervalSince(startTime)
         ModelStatus.reportModelLoaded(name: name, time: loadTime)
         return model
