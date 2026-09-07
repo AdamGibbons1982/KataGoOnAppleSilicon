@@ -271,3 +271,21 @@ private func packageManifest() throws -> String {
         """
     )
 }
+
+// MARK: - Fork change 11: Application Support cache for ModelLoader
+
+@Test func forkChange11_modelLoaderCachesInApplicationSupport() throws {
+    let source = try engineSource("Models/ModelLoader.swift")
+    #expect(
+        source.contains("url(for: .applicationSupportDirectory"),
+        "Fork change 11 missing: ModelLoader must cache compiled models in Application Support."
+    )
+    #expect(
+        source.contains(".timeIntervalSince1970"),
+        "Fork change 11 missing: ModelLoader must key the cache on a version/hash (modification date)."
+    )
+    #expect(
+        source.contains("KataGoModels"),
+        "Fork change 11 missing: ModelLoader should use a KataGoModels subdirectory."
+    )
+}
