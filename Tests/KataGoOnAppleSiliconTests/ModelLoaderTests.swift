@@ -12,7 +12,7 @@ import CoreML
 @Test func testLoadExistingModel() async throws {
     let loader = ModelLoader()
     // Bundled models are at Sources/KataGoOnAppleSilicon/Models/Resources/
-    _ = try loader.loadModel(name: "KataGoModel19x19fp16-zhizi-b28")
+    _ = try loader.loadModel(name: "KataGoModel19x19fp16-kata1-tf3-b11c768")
 }
 
 @Test func testLoadNonExistingModel() async throws {

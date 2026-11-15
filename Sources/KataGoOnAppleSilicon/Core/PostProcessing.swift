@@ -21,7 +21,8 @@ public struct PostProcessParams: Sendable {
     public let shorttermScoreErrorMultiplier: Double
     
     /// Default parameters matching the bundled KataGo AI model
-    /// (`KataGoModel19x19fp16-adam-s11165M`, model version 15).
+    /// (`KataGoModel19x19fp16-kata1-tf3-b11c768`, model version 17; its header carries the same
+    /// values as the earlier version 15 nets).
     /// Key non-obvious values:
     /// - `outputScaleMultiplier`: 1.0 (model description field; earlier code incorrectly used 8.0)
     /// - `shorttermScoreErrorMultiplier`: 150.0 (model description field; earlier code incorrectly used 30.0)

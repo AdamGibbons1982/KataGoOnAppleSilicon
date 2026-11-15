@@ -212,10 +212,10 @@ private func packageManifest() throws -> String {
 @Test func forkChange8_aiModelNameMatchesShippedModel() throws {
     let source = try engineSource("KataGoInference.swift")
     #expect(
-        source.contains("KataGoModel19x19fp16-zhizi-b28"),
+        source.contains("KataGoModel19x19fp16-kata1-tf3-b11c768"),
         """
         Fork change 8 missing: the AI model name must be \
-        KataGoModel19x19fp16-zhizi-b28, the net Goban3D actually bundles. \
+        KataGoModel19x19fp16-kata1-tf3-b11c768, the net Goban3D actually bundles. \
         Upstream's default resolves to no file and every genmove fails with \
         modelNotFound.
         """

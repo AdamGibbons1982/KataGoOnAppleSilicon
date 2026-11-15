@@ -87,7 +87,7 @@ public class KataGoInference {
         if profile == "AI" {
             // Only load if not already loaded
             if aiModel == nil {
-                let modelName = "KataGoModel19x19fp16-zhizi-b28"  // Strongest 28b model
+                let modelName = "KataGoModel19x19fp16-kata1-tf3-b11c768"  // kata1 tf3 b11c768 transformer
                 aiModel = try modelLoader.loadModel(name: modelName)
             }
         } else if isHumanSLProfile(profile) {
