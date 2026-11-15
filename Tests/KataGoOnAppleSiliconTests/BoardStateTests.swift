@@ -34,13 +34,16 @@ import CoreML
 
 @Test func testBoardStatePlane6KoBan() async throws {
     let board = Board()
-    // Create a ko situation:
-    // Place white stone at (1,0) that will be captured
+    // Create a ko situation (edge ko):
+    //   2  . X O .
+    //   1  X O . O      Black C1 captures White B1 and is left with a
+    //      A B C D      single liberty at B1, so B1 is ko-banned.
     _ = board.playMove(at: Point(x: 1, y: 0), stone: .white)
-    // Surround it with black stones
     _ = board.playMove(at: Point(x: 0, y: 0), stone: .black)
-    _ = board.playMove(at: Point(x: 2, y: 0), stone: .black)
     _ = board.playMove(at: Point(x: 1, y: 1), stone: .black)
+    _ = board.playMove(at: Point(x: 2, y: 1), stone: .white)
+    _ = board.playMove(at: Point(x: 3, y: 0), stone: .white)
+    _ = board.playMove(at: Point(x: 2, y: 0), stone: .black)
     // White stone at (1,0) is now captured, ko point should be (1,0)
     #expect(board.koPoint != nil)
     #expect(board.koPoint?.x == 1)
@@ -86,13 +89,13 @@ import CoreML
 
 @Test func testBoardStatePlane7WithKo() async throws {
     let board = Board()
-    // Create a ko situation:
-    // Place white stone at (1,0) that will be captured
+    // Create a ko situation (same edge ko as testBoardStatePlane6KoBan)
     _ = board.playMove(at: Point(x: 1, y: 0), stone: .white)
-    // Surround it with black stones
     _ = board.playMove(at: Point(x: 0, y: 0), stone: .black)
-    _ = board.playMove(at: Point(x: 2, y: 0), stone: .black)
     _ = board.playMove(at: Point(x: 1, y: 1), stone: .black)
+    _ = board.playMove(at: Point(x: 2, y: 1), stone: .white)
+    _ = board.playMove(at: Point(x: 3, y: 0), stone: .white)
+    _ = board.playMove(at: Point(x: 2, y: 0), stone: .black)
     // White stone at (1,0) is now captured, ko point should be (1,0)
     #expect(board.koPoint != nil)
     
